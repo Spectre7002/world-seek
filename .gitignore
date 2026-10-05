@@ -1,0 +1,30 @@
+# dependencies
+node_modules
+
+# next.js
+.next
+next-env.d.ts
+
+# typescript
+*.tsbuildinfo
+
+# env files (keep .env.example tracked, ignore everything else)
+.env
+.env.*
+!.env.example
+
+# logs
+*.log
+
+# os
+.DS_Store
+
+# claude code local settings (personal, not shared)
+.claude/settings.local.json
+
+# audit / security reports — keep out of the public repo (infra details, findings)
+AUDIT.md
+audit/
+
+# throwaway probe & load scripts kept at the repo root (see scripts/ for real ones)
+/_*.mjs

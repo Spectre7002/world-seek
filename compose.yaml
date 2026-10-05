@@ -1,0 +1,24 @@
+services:
+  world-seek:
+    build:
+      context: .
+      args:
+        # NEXT_PUBLIC_* is inlined into the client bundle at BUILD time, so the
+        # Maps key has to be a build arg — a runtime env var arrives too late.
+        NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+    ports:
+      - "3000:3000"
+    environment:
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:3000}
+      # Monthly Google Maps spend cap. See "Capping your Maps bill" in the README.
+      MAPS_BUDGET_USD: ${MAPS_BUDGET_USD:-20}
+    volumes:
+      # The Maps budget counter. This named volume is the whole reason the cap
+      # survives a redeploy — without it the counter starts at zero every deploy
+      # and stops capping anything. The server logs a [budget] line at boot
+      # saying which of the two it got.
+      - world-seek-data:/data
+    restart: unless-stopped
+
+volumes:
+  world-seek-data:
