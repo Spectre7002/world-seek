@@ -3,12 +3,8 @@
 import { loadGoogleMaps } from "./mapsLoader";
 import type { HidingSpot, LatLng } from "@/shared/types";
 
-// Picking a random spot that actually has Street View is the brittle part of solo
-// mode: a uniform point on the globe is ~71% ocean and most land has no coverage.
-// So we sample from curated bounding boxes over well-covered countries, snap to the
-// nearest OUTDOOR panorama within a generous radius, and retry; if every attempt
-// somehow misses we fall back to a list of guaranteed-covered landmarks so the
-// game can never hang on a blank screen.
+// Sample small areas around dense road grids, then only accept linked OUTDOOR
+// panoramas so solo rounds always start on a navigable road.
 
 interface Region {
   /** [south, west, north, east] bounding box, degrees. */
@@ -17,26 +13,30 @@ interface Region {
   weight: number;
 }
 
-// Boxes are kept inside densely-covered areas so a random point almost always
-// finds a road within REGION_RADIUS_M. Weights bias toward the densest coverage.
+// Sample urban road grids. Each accepted target is a real OUTDOOR panorama
+// with at least one connected Street View link, not an arbitrary map coordinate.
 const REGIONS: Region[] = [
-  { box: [33, -120, 47, -75], weight: 5 }, // continental US
-  { box: [43, -5, 54, 12], weight: 5 }, // western Europe (FR/DE/BE/NL)
-  { box: [51, -6, 57, 1], weight: 2 }, // UK & Ireland
-  { box: [36, -9, 43, 3], weight: 2 }, // Iberia
-  { box: [37, 7, 45, 18], weight: 2 }, // Italy
-  { box: [33, 130, 41, 141], weight: 3 }, // Japan
-  { box: [-38, 144, -27, 153], weight: 2 }, // SE Australia
-  { box: [-46, 167, -36, 178], weight: 1 }, // New Zealand
-  { box: [-30, -52, -20, -43], weight: 2 }, // SE Brazil
-  { box: [-34, 18, -26, 31], weight: 1 }, // South Africa
-  { box: [43, -123, 50, -75], weight: 2 }, // southern Canada
+  { box: [40.68, -74.03, 40.82, -73.91], weight: 5 }, // New York
+  { box: [48.81, 2.25, 48.89, 2.42], weight: 5 }, // Paris
+  { box: [51.48, -0.19, 51.55, -0.06], weight: 3 }, // London
+  { box: [52.49, 13.35, 52.54, 13.44], weight: 3 }, // Berlin
+  { box: [35.63, 139.67, 35.70, 139.75], weight: 4 }, // Tokyo
+  { box: [-33.89, 151.18, -33.84, 151.24], weight: 3 }, // Sydney
+  { box: [37.75, -122.45, 37.80, -122.39], weight: 3 }, // San Francisco
+  { box: [41.87, 12.47, 41.92, 12.53], weight: 2 }, // Rome
+  { box: [43.62, -79.41, 43.67, -79.36], weight: 2 }, // Toronto
+  { box: [-23.0, -43.25, -22.93, -43.18], weight: 2 }, // Rio de Janeiro
+  { box: [19.38, -99.17, 19.46, -99.11], weight: 3 }, // Mexico City
+  { box: [41.36, 2.13, 41.41, 2.19], weight: 2 }, // Barcelona
+  { box: [37.54, 126.96, 37.59, 127.03], weight: 3 }, // Seoul
+  { box: [13.72, 100.49, 13.77, 100.55], weight: 2 }, // Bangkok
+  { box: [-37.84, 144.95, -37.79, 145.0], weight: 2 }, // Melbourne
+  { box: [-33.95, 18.39, -33.90, 18.44], weight: 1 }, // Cape Town
 ];
 
-// Snap radius for a random sample: wide on purpose — we just want *any* nearby
-// coverage (unlike precise hiding, which snaps tightly to a clicked street).
-const REGION_RADIUS_M = 100_000;
-const MAX_ATTEMPTS = 25;
+const REGION_RADIUS_M = 4_000;
+const MAX_ATTEMPTS = 24;
+const recentPanoIds = new Set<string>();
 
 // Guaranteed-covered landmarks. Last-resort only, so generation never fails.
 const FALLBACK_SEEDS: LatLng[] = [
@@ -87,7 +87,15 @@ function resolvePano(
       },
       (data, status) => {
         const pos = data?.location?.latLng;
-        if (status === google.maps.StreetViewStatus.OK && data?.location?.pano && pos) {
+        const hasRoadLinks = (data?.links || []).some(function (link) {
+          return Boolean(link.pano && link.heading != null);
+        });
+        if (
+          status === google.maps.StreetViewStatus.OK &&
+          data?.location?.pano &&
+          pos &&
+          hasRoadLinks
+        ) {
           resolve({ panoId: data.location.pano, lat: pos.lat(), lng: pos.lng() });
         } else {
           resolve(null);
@@ -98,24 +106,34 @@ function resolvePano(
 }
 
 /**
- * Resolve a random, Street-View-covered location for one solo round. Tries curated
- * regions first, then guaranteed landmarks. Throws only if even the landmarks fail
- * (e.g. a bad API key), which the caller surfaces as a retryable error.
+ * Resolve a unique connected-road panorama for one solo round. Samples city
+ * street grids first, then uses compact landmark areas as a last resort.
  */
 export async function generateSoloTarget(): Promise<HidingSpot> {
   const google = await loadGoogleMaps();
+  if (recentPanoIds.size >= 200) recentPanoIds.clear();
 
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     const point = randomPointIn(pickWeighted(REGIONS).box);
     const pano = await resolvePano(google, point, REGION_RADIUS_M);
-    if (pano) return pano;
+    if (pano && !recentPanoIds.has(pano.panoId)) {
+      recentPanoIds.add(pano.panoId);
+      return pano;
+    }
   }
 
   // Fallback: shuffle the landmark seeds and snap the first that resolves.
   const seeds = [...FALLBACK_SEEDS].sort(() => Math.random() - 0.5);
   for (const seed of seeds) {
-    const pano = await resolvePano(google, seed, 1_000);
-    if (pano) return pano;
+    const jitteredSeed = {
+      lat: seed.lat + (Math.random() - 0.5) * 0.025,
+      lng: seed.lng + (Math.random() - 0.5) * 0.025,
+    };
+    const pano = await resolvePano(google, jitteredSeed, 2_000);
+    if (pano && !recentPanoIds.has(pano.panoId)) {
+      recentPanoIds.add(pano.panoId);
+      return pano;
+    }
   }
 
   throw new Error("Could not find a Street View location");

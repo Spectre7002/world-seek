@@ -19,6 +19,8 @@ export interface Settings {
   textChat: boolean;
   /** Whether in-game voice chat (WebRTC) is enabled. */
   voiceChat: boolean;
+  /** Whether hiding spots may use community and photosphere imagery. */
+  allowUnofficialCoverage: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   findingTimeLimit: 0,
   textChat: true,
   voiceChat: false,
+  allowUnofficialCoverage: false,
 };
 
 // ---------------------------------------------------------------------------

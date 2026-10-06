@@ -8,6 +8,7 @@ import StreetView, { type ResolvedPano } from "./StreetView";
 import PlayerList from "./PlayerList";
 import WaitingBar from "./WaitingBar";
 import Timer from "./Timer";
+import FloatingMap from "./FloatingMap";
 
 interface Props {
   state: PublicState;
@@ -32,8 +33,6 @@ export default function HidingPhase(props: Props) {
   const [queryRadius, setQueryRadius] = useState(500);
   const [resolved, setResolved] = useState<ResolvedPano | null>(null);
   const [coverage, setCoverage] = useState<Coverage>("unknown");
-
-  const [showIntro, setShowIntro] = useState(state.currentRound === 0);
 
   if (state.youHaveHidden) {
     return (
@@ -96,10 +95,6 @@ export default function HidingPhase(props: Props) {
     }
   }
 
-  function handleCloseIntro() {
-    setShowIntro(false);
-  }
-
   const canHide = !!resolved && coverage === "ok";
   const markerSpot: LatLng | null = resolved
     ? { lat: resolved.lat, lng: resolved.lng }
@@ -109,20 +104,23 @@ export default function HidingPhase(props: Props) {
 
   return (
     <div className="full-bleed">
-      <div className="split">
-        <div style={{ position: "relative", width: "100%", height: "100%" }}>
-          <MapPicker
-            value={markerSpot}
-            onChange={pick}
-            markerIcon={state.youEmoji}
-            coverage
-          />
-
-          {hidingTime > 0 && (
-            <div style={{ position: "absolute", top: 16, right: 16, zIndex: 10 }}>
-              <Timer seconds={hidingTime} onExpire={handleTimeUp} />
-            </div>
+      <div className="round-play">
+        <div className="round-streetview">
+          {query ? (
+            <StreetView
+              mode="position"
+              position={query}
+              radius={queryRadius}
+              allowUnofficialCoverage={state.settings.allowUnofficialCoverage}
+              onPano={onPano}
+            />
+          ) : (
+            <div className="hiding-preview-prompt">Оберіть точку на мапі, щоб завантажити Street View.</div>
           )}
+          <div className="round-hud">
+            <span>{resolved ? "Оберіть місце схованки" : "Спочатку оберіть місце на мапі"}</span>
+            {hidingTime > 0 && <Timer seconds={hidingTime} onExpire={handleTimeUp} />}
+          </div>
 
           <div className="roster" role="status" aria-label="Hiding status">
             <div className="roster-head">
@@ -161,92 +159,33 @@ export default function HidingPhase(props: Props) {
               })}
             </div>
           </div>
-
-          {query && (
-            <div
-              className={`overlay-bar overlay-bar--reveal${
-                coverage === "checking" ? " overlay-bar--thinking" : ""
-              }`}
-            >
-              <span className="overlay-bar-msg">
-                {coverage === "none" ? (
-                  <span style={{ color: "var(--warn)" }}>
-                    No Street View there — click closer to a road.
-                  </span>
-                ) : (
-                  <span className="muted">
-                    Walk around to your spot, then hide here.
-                  </span>
-                )}
-              </span>
-              <button type="button" onClick={confirm} disabled={!canHide}>
-                Hide here
-              </button>
-            </div>
-          )}
         </div>
-        <div style={{ position: "relative", background: "#000", width: "100%", height: "100%" }}>
-          {query ? (
-            <StreetView
-              mode="position"
-              position={query}
-              radius={queryRadius}
-              onPano={onPano}
-            />
-          ) : (
-            <div
-              className="muted"
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              Street View preview
-            </div>
-          )}
-        </div>
-      </div>
 
-      {showIntro && (
-        <div className="modal-backdrop" onClick={handleCloseIntro}>
-          <div
-            className="modal stack"
-            role="dialog"
-            aria-modal="true"
-            onClick={function (e) {
-              e.stopPropagation();
-            }}
-          >
-            <button
-              type="button"
-              className="ghost modal-x"
-              aria-label="Close"
-              onClick={handleCloseIntro}
-            >
-              ✕
-            </button>
-            <h2 className="title" style={{ margin: 0 }}>
-              Pick your hiding spot 🫥
-            </h2>
-            <ul className="modal-list">
-              <li>Click the map to drop your pin</li>
-              <li>Zoom into the blue roads for precise Street View placement</li>
-            </ul>
-            <div className="card stack" style={{ gap: 8 }}>
-              <span className="eyebrow">You set the difficulty 🎚️</span>
-              <ul className="modal-list muted" style={{ fontSize: 14 }}>
-                <li>Hide by street signs, addresses or car plates to leave clues</li>
-                <li>Pick somewhere blank to send everyone wandering</li>
-              </ul>
-            </div>
-            <button type="button" onClick={handleCloseIntro}>
-              Let's go
+        <FloatingMap title="Pick your hiding spot" className="hiding-map-window">
+          <MapPicker
+            value={markerSpot}
+            onChange={pick}
+            markerIcon={state.youEmoji}
+            coverage
+          />
+        </FloatingMap>
+        {query && (
+          <div className="overlay-bar hiding-confirm-bar">
+            <span className="overlay-bar-msg">
+              {coverage === "checking" ? (
+                <span className="muted">Завантаження панорами…</span>
+              ) : coverage === "none" ? (
+                <span style={{ color: "var(--warn)" }}>Street View не знайдено поруч.</span>
+              ) : (
+                <span className="muted">Ховатися в цій панорамі?</span>
+              )}
+            </span>
+            <button type="button" onClick={confirm} disabled={!canHide}>
+              Hide here
             </button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

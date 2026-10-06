@@ -14,6 +14,7 @@ import ResultsPhase from "./ResultsPhase";
 import FinalScores from "./FinalScores";
 import TextChat from "./TextChat";
 import VoiceChat from "./VoiceChat";
+import RoundStartNotice from "./RoundStartNotice";
 
 export default function GameRoom(props: { code: string }) {
   const code = props.code;
@@ -87,6 +88,7 @@ export default function GameRoom(props: { code: string }) {
             state={s}
             onGuess={game.guess}
             onPreview={game.previewGuess}
+            onView={game.syncView}
           />
         );
       case "results":
@@ -101,6 +103,12 @@ export default function GameRoom(props: { code: string }) {
   return (
     <>
       {renderPhase()}
+      {(s.phase === "hiding" || s.phase === "finding") && (
+        <RoundStartNotice
+          key={s.phase + "-" + s.currentRound}
+          round={s.currentRound + 1}
+        />
+      )}
       <GameMenu
         isGameMaster={s.youAreGameMaster}
         onLeave={game.leave}

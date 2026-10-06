@@ -94,6 +94,9 @@ export function sanitizeSettings(v: unknown): Partial<Settings> {
   }
   if (typeof o.textChat === "boolean") out.textChat = o.textChat;
   if (typeof o.voiceChat === "boolean") out.voiceChat = o.voiceChat;
+  if (typeof o.allowUnofficialCoverage === "boolean") {
+    out.allowUnofficialCoverage = o.allowUnofficialCoverage;
+  }
 
   return out;
 }

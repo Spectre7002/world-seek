@@ -34,6 +34,7 @@ export function loadGoogleMaps(): Promise<typeof google> {
     const loader = new Loader({
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
       version: "weekly",
+      language: "en",
       libraries: ["maps", "streetView", "geometry"],
     });
     promise = loader.load();

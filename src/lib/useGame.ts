@@ -8,6 +8,7 @@ import type {
   JoinAck,
   JoinError,
   LatLng,
+  LiveView,
   PeekAck,
   PublicState,
   ReconnectAck,
@@ -90,6 +91,17 @@ export function useGame(code: string) {
         setStatus("in-game");
       }
 
+      function onLiveView(view: LiveView) {
+        setState(function (current) {
+          if (!current || current.phase !== "finding") return current;
+          const liveViews = current.liveViews.filter(function (item) {
+            return item.playerId !== view.playerId;
+          });
+          liveViews.push(view);
+          return { ...current, liveViews: liveViews };
+        });
+      }
+
       function onConnect() {
         setConnected(true);
         reseat();
@@ -106,6 +118,7 @@ export function useGame(code: string) {
       }
 
       socket.on("state", onState);
+      socket.on("view:live", onLiveView);
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
       socket.on("game:closed", onClosed);
@@ -117,6 +130,7 @@ export function useGame(code: string) {
 
       return function () {
         socket.off("state", onState);
+        socket.off("view:live", onLiveView);
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
         socket.off("game:closed", onClosed);
@@ -224,6 +238,13 @@ export function useGame(code: string) {
     if (socket.connected && seated.current) socket.emit("guess:preview", at);
   }, []);
 
+  const syncView = useCallback(function (
+    view: Pick<LiveView, "panoId" | "heading" | "pitch" | "zoom">,
+  ) {
+    const socket = getSocket();
+    if (socket.connected && seated.current) socket.emit("view:sync", view);
+  }, []);
+
   const nextRound = useCallback(
     function () {
       dispatch("round:next");
@@ -258,7 +279,7 @@ export function useGame(code: string) {
 
   // Новый метод для смены настроек
   const updateSettings = useCallback(
-    function (settings: Record<string, number>) {
+    function (settings: Partial<PublicState["settings"]>) {
       dispatch("game:settings", { settings: settings });
     },
     [dispatch],
@@ -277,6 +298,7 @@ export function useGame(code: string) {
     guess: guess,
     sendSoloTarget: sendSoloTarget,
     previewGuess: previewGuess,
+    syncView: syncView,
     nextRound: nextRound,
     returnToLobby: returnToLobby,
     leave: leave,

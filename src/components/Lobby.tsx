@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 import QRCode from "react-qr-code";
-import type { PublicState } from "@/shared/types";
+import type { PublicState, Settings } from "@/shared/types";
 import PlayerList from "./PlayerList";
 
 interface Props {
   state: PublicState;
   onStart: () => void;
-  onUpdateSettings?: (settings: Record<string, number>) => void;
+  onUpdateSettings?: (settings: Partial<Settings>) => void;
   speakingIds?: Set<string>;
 }
 
@@ -63,6 +63,12 @@ export default function Lobby(props: Props) {
     const current = state.settings.findingTimeLimit || 0;
     const nextVal = Math.max(0, Math.min(300, current + delta));
     onUpdateSettings({ findingTimeLimit: nextVal });
+  }
+
+  function toggleUnofficialCoverage() {
+    onUpdateSettings?.({
+      allowUnofficialCoverage: !state.settings.allowUnofficialCoverage,
+    });
   }
 
   function handleDecRounds() {
@@ -252,6 +258,25 @@ export default function Lobby(props: Props) {
               ) : (
                 <span className="setting-value-static">{formatTime(findingTimeVal)}</span>
               )}
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-label">Дозволити неофіційне покриття</span>
+                <span className="setting-desc">
+                  Будинки та неофіційні фотосфери для схованок
+                </span>
+              </div>
+              <button
+                type="button"
+                className={`coverage-toggle${state.settings.allowUnofficialCoverage ? " is-on" : ""}`}
+                role="switch"
+                aria-checked={state.settings.allowUnofficialCoverage}
+                disabled={!isGM}
+                onClick={toggleUnofficialCoverage}
+              >
+                {state.settings.allowUnofficialCoverage ? "Увімкнено" : "Вимкнено"}
+              </button>
             </div>
           </div>
 

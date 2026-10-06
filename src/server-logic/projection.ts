@@ -189,7 +189,7 @@ export function projectFor(room: Room, viewerId: string): PublicState {
   }
 
   const currentCycle = room.cycleCount || 1;
-  const totalCycles = 5;
+  const totalCycles = room.settings.multiplayerCycles || 5;
 
   return {
     code: room.code,
@@ -207,7 +207,7 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     hiddenCount: hiddenCount,
     expectedHiders: connected.length,
 
-    currentRound: currentCycle - 1,
+    currentRound: solo ? room.currentRound : currentCycle - 1,
     totalRounds: solo ? room.settings.soloRounds : totalCycles,
     currentTarget: currentTarget,
     youAreTarget: youAreTarget,

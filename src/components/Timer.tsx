@@ -53,7 +53,7 @@ export default function Timer(props: Props) {
 
   useEffect(
     function () {
-      if (timeLeft <= 0 || timeLeft > 10) return;
+      if (timeLeft <= 0 || timeLeft > 15) return;
       playTimeTickSfx(timeLeft <= 5);
     },
     [timeLeft]
@@ -67,7 +67,7 @@ export default function Timer(props: Props) {
   const secs = timeLeft % 60;
   const formattedSecs = secs < 10 ? "0" + secs : secs;
   const isWarning = timeLeft <= 15;
-  const isCritical = timeLeft <= 10 && timeLeft > 0;
+  const isCritical = timeLeft <= 15 && timeLeft > 0;
 
   return (
     <>

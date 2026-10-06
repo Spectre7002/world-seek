@@ -1,18 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { LatLng, PublicPlayer, PublicState } from "@/shared/types";
+import type { LatLng, LiveView, PublicPlayer, PublicState } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
 import MapPicker, { type MapMarker } from "./MapPicker";
-import StreetView from "./StreetView";
+import StreetView, { type StreetViewCam } from "./StreetView";
 import PlayerList from "./PlayerList";
 import WaitingBar from "./WaitingBar";
 import Timer from "./Timer";
+import FloatingMap from "./FloatingMap";
 
 interface Props {
   state: PublicState;
   onGuess: (at: LatLng) => void;
   onPreview: (at: LatLng) => void;
+  onView: (view: StreetViewCam) => void;
 }
 
 const PREVIEW_THROTTLE_MS = 100;
@@ -22,6 +24,7 @@ export default function FindingPhase(props: Props) {
   const state = props.state;
   const onGuess = props.onGuess;
   const onPreview = props.onPreview;
+  const onView = props.onView;
 
   const [guess, setGuess] = useState<LatLng | null>(null);
   const roundLabel = "Round " + (state.currentRound + 1) + " of " + state.totalRounds;
@@ -85,6 +88,7 @@ export default function FindingPhase(props: Props) {
         title="Everyone's hunting for you 🔎"
         emptyHint="Sit tight while the others guess your hiding spot."
         markers={liveMarkers}
+        views={state.liveViews}
         current={state.guessedCount}
         total={state.expectedGuessers}
       />
@@ -98,6 +102,7 @@ export default function FindingPhase(props: Props) {
         title="Guess locked in ✅"
         emptyHint="Waiting for the other hunters to lock in."
         markers={liveMarkers}
+        views={state.liveViews}
         current={state.guessedCount}
         total={state.expectedGuessers}
         players={state.players}
@@ -132,8 +137,8 @@ export default function FindingPhase(props: Props) {
 
   return (
     <div className="full-bleed">
-      <div className="split">
-        <div style={{ position: "relative", background: "#000", width: "100%", height: "100%" }}>
+      <div className="round-play">
+        <div className="round-streetview">
           <div className="overlay-top overlay-top--emoji">
             {state.solo ? (
               <span>
@@ -156,14 +161,18 @@ export default function FindingPhase(props: Props) {
               </>
             )}
           </div>
-          <StreetView mode="pano" panoId={state.currentTarget ? state.currentTarget.panoId : undefined} />
+          <StreetView
+            mode="pano"
+            panoId={state.currentTarget ? state.currentTarget.panoId : undefined}
+            onView={state.solo ? undefined : onView}
+          />
         </div>
 
-        <div style={{ position: "relative", width: "100%", height: "100%" }}>
-          <div className="overlay-top">
-            <span>{roundLabel} · drop your guess</span>
-            {findingTime > 0 && <Timer seconds={findingTime} onExpire={handleTimeUp} />}
-          </div>
+        <div className="round-hud">
+          <span>{roundLabel} · drop your guess</span>
+          {findingTime > 0 && <Timer seconds={findingTime} onExpire={handleTimeUp} />}
+        </div>
+        <FloatingMap title="Move the map and place your guess" className="guess-map-window">
           <MapPicker
             value={guess}
             onChange={handleChange}
@@ -171,10 +180,10 @@ export default function FindingPhase(props: Props) {
             markerIcon={state.youEmoji}
             resetViewKey={state.currentRound}
           />
-        </div>
+        </FloatingMap>
       </div>
 
-      <div className="overlay-bar">
+      <div className="overlay-bar guess-confirm-bar">
         {!guess && <span className="muted">Click the map to place your guess.</span>}
         {guess && <span className="muted">Lock it in?</span>}
         <button
@@ -194,6 +203,7 @@ function WatchView(props: {
   title: string;
   emptyHint: string;
   markers: MapMarker[];
+  views: LiveView[];
   current: number;
   total: number;
   players?: PublicPlayer[];
@@ -202,11 +212,17 @@ function WatchView(props: {
   const title = props.title;
   const emptyHint = props.emptyHint;
   const markers = props.markers;
+  const views = props.views;
   const current = props.current;
   const total = props.total;
   const players = props.players;
+  const [selectedHunterId, setSelectedHunterId] = useState("");
+  const selectedView =
+    views.find(function (view) {
+      return view.playerId === selectedHunterId;
+    }) || views[0] || null;
 
-  if (markers.length === 0) {
+  if (markers.length === 0 && views.length === 0) {
     return (
       <div className="center-screen">
         <div className="stack" style={{ width: 420, gap: 18 }}>
@@ -226,14 +242,46 @@ function WatchView(props: {
 
   return (
     <div className="full-bleed">
-      <div className="map-wrap">
-        <div className="overlay-top">
-          <strong>{title}</strong>
-          <div className="muted" style={{ fontSize: 14, marginTop: 2 }}>
-            {roundLabel} · pins glow solid when locked in
+      <div className="round-play">
+        <div className="round-streetview watch-view">
+          <div className="watch-target-heading">
+            <strong>{title}</strong>
+            <span>{roundLabel} · live hunter view</span>
+            <div className="watch-hunter-tabs" role="tablist" aria-label="Choose a hunter">
+              {views.map(function (view) {
+                return (
+                  <button
+                    type="button"
+                    key={view.playerId}
+                    role="tab"
+                    aria-selected={selectedView?.playerId === view.playerId}
+                    className={selectedView?.playerId === view.playerId ? "is-selected" : ""}
+                    onClick={function () {
+                      setSelectedHunterId(view.playerId);
+                    }}
+                  >
+                    {view.emoji} {view.name}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+          {selectedView ? (
+            <StreetView
+              mode="pano"
+              panoId={selectedView.panoId}
+              follow={selectedView}
+              interactive={false}
+            />
+          ) : (
+            <div className="watch-waiting-hint">
+              {views.length === 0 ? emptyHint : "Завантаження Street View шукача…"}
+            </div>
+          )}
         </div>
-        <MapPicker markers={markers} />
+        <FloatingMap title="Hunters' guesses" className="watch-map-window">
+          <MapPicker markers={markers} />
+        </FloatingMap>
       </div>
       <div className="overlay-bar">
         <div style={{ minWidth: 220 }}>
