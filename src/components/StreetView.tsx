@@ -79,7 +79,6 @@ export default function StreetView(props: Props) {
           fullscreenControl: false,
           motionTracking: false,
           motionTrackingControl: false,
-          compassControl: false,
           panControl: false,
           linksControl: interactive,
           clickToGo: false,
@@ -114,7 +113,8 @@ export default function StreetView(props: Props) {
         });
 
         if (interactive) {
-          clickCleanup = bindFarWalk(pano, wrapRef.current);
+          const wrap = wrapRef.current;
+          if (wrap) clickCleanup = bindFarWalk(pano, wrap);
         }
 
         panoRef.current = pano;
@@ -250,10 +250,8 @@ export default function StreetView(props: Props) {
 
 function bindFarWalk(
   pano: google.maps.StreetViewPanorama,
-  wrap: HTMLDivElement | null,
+  wrap: HTMLDivElement,
 ): () => void {
-  if (!wrap) return function () {};
-
   let downX = 0;
   let downY = 0;
   let downAt = 0;
