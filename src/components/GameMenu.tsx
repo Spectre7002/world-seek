@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import SfxControl from "./SfxControl";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   isGameMaster: boolean;
@@ -16,6 +17,7 @@ interface Props {
  * confirmation dialog guards against accidental taps before anything happens.
  */
 export default function GameMenu({ isGameMaster, onLeave, onClose }: Props) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
@@ -31,7 +33,7 @@ export default function GameMenu({ isGameMaster, onLeave, onClose }: Props) {
         <button
           className="secondary game-menu-button"
           onClick={() => setOpen((o) => !o)}
-          aria-label="Menu"
+          aria-label={t("Menu")}
           aria-expanded={open}
         >
           ☰
@@ -49,7 +51,7 @@ export default function GameMenu({ isGameMaster, onLeave, onClose }: Props) {
                 setConfirming(true);
               }}
             >
-              {isGameMaster ? "Close game" : "Exit game"}
+              {isGameMaster ? t("Close game") : t("Exit game")}
             </button>
           </div>
         )}
@@ -65,17 +67,17 @@ export default function GameMenu({ isGameMaster, onLeave, onClose }: Props) {
             <button
               className="ghost modal-x"
               onClick={() => setConfirming(false)}
-              aria-label="Cancel"
+              aria-label={t("Cancel")}
             >
               ✕
             </button>
             <h2 className="title" style={{ fontSize: 24 }}>
-              {isGameMaster ? "Close game?" : "Exit game?"}
+              {isGameMaster ? t("Close game?") : t("Exit game?")}
             </h2>
             <p className="muted" style={{ margin: 0 }}>
               {isGameMaster
-                ? "This ends the game for everyone and sends all players back to the home page."
-                : "You'll go back to the home page. The other players keep playing."}
+                ? t("This ends the game for everyone and sends all players back to the home page.")
+                : t("You'll go back to the home page. The other players keep playing.")}
             </p>
             <div className="row" style={{ gap: 10, alignItems: "stretch" }}>
               <button
@@ -83,10 +85,10 @@ export default function GameMenu({ isGameMaster, onLeave, onClose }: Props) {
                 style={{ flex: 1 }}
                 onClick={() => setConfirming(false)}
               >
-                Cancel
+                {t("Cancel")}
               </button>
               <button style={{ flex: 1 }} onClick={isGameMaster ? onClose : onLeave}>
-                {isGameMaster ? "Close game for everyone" : "Exit game"}
+                {isGameMaster ? t("Close game for everyone") : t("Exit game")}
               </button>
             </div>
           </div>

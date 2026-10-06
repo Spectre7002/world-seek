@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getSfxSettings, setSfxEnabled, setSfxVolume } from "@/lib/sfx";
+import { useLanguage } from "@/lib/language";
 
 /**
  * Sound-effects toggle + volume slider. Always mounted behind a gate (a menu
@@ -10,12 +11,13 @@ import { getSfxSettings, setSfxEnabled, setSfxVolume } from "@/lib/sfx";
  * server-rendered HTML, so there's nothing for hydration to mismatch against.
  */
 export default function SfxControl() {
+  const { t } = useLanguage();
   const [settings, setSettings] = useState(() => getSfxSettings());
 
   return (
     <div className="stack" style={{ gap: 8 }}>
       <label className="chat-toggle-row">
-        <span className="eyebrow">Sound effects</span>
+        <span className="eyebrow">{t("Sound effects")}</span>
         <button
           type="button"
           className={`toggle-btn${settings.enabled ? " toggle-btn--on" : ""}`}
@@ -26,7 +28,7 @@ export default function SfxControl() {
           }}
           aria-pressed={settings.enabled}
         >
-          {settings.enabled ? "On" : "Off"}
+          {settings.enabled ? t("On") : t("Off")}
         </button>
       </label>
       <input
@@ -42,7 +44,7 @@ export default function SfxControl() {
           setSettings((s) => ({ ...s, volume }));
           setSfxVolume(volume);
         }}
-        aria-label="Sound effects volume"
+        aria-label={t("Sound effects volume")}
       />
     </div>
   );

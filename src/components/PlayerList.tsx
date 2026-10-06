@@ -2,6 +2,7 @@
 
 import type { PublicPlayer } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   players: PublicPlayer[];
@@ -18,6 +19,7 @@ export default function PlayerList({
   hiddenLabel = "ready",
   speakingIds,
 }: Props) {
+  const { t } = useLanguage();
   return (
     <div
       className="stack"
@@ -33,13 +35,13 @@ export default function PlayerList({
               <img className="emoji-img" src={emojiUrl(p.emoji)} alt="" />
             </span>
             <strong>{p.name}</strong>
-            {p.isGameMaster && <span className="badge">host</span>}
-            {!p.connected && <span className="badge off">offline</span>}
+            {p.isGameMaster && <span className="badge">{t("host")}</span>}
+            {!p.connected && <span className="badge off">{t("offline")}</span>}
           </div>
           <div className="row" style={{ gap: 8 }}>
             {showHidden && (
               <span className={`badge ${p.hasHidden ? "good" : ""}`}>
-                {p.hasHidden ? hiddenLabel : "…"}
+                {p.hasHidden ? t(hiddenLabel) : "…"}
               </span>
             )}
             {showScore && (

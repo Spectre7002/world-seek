@@ -9,6 +9,7 @@ import PlayerList from "./PlayerList";
 import WaitingBar from "./WaitingBar";
 import Timer from "./Timer";
 import FloatingMap from "./FloatingMap";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   state: PublicState;
@@ -25,6 +26,7 @@ function snapRadius(lat: number, zoom: number): number {
 }
 
 export default function HidingPhase(props: Props) {
+  const { t } = useLanguage();
   const state = props.state;
   const onHide = props.onHide;
   const speakingIds = props.speakingIds;
@@ -38,20 +40,20 @@ export default function HidingPhase(props: Props) {
     return (
       <div className="center-screen">
         <div className="stack" style={{ width: 420, gap: 18 }}>
-          <h1 className="title">You're hidden 🫣</h1>
+          <h1 className="title">{t("You're hidden 🫣")}</h1>
           <p className="muted" style={{ margin: 0 }}>
-            Waiting for everyone to pick a hiding spot.
+            {t("Waiting for everyone to pick a hiding spot.")}
           </p>
           <div className="card stack">
             <WaitingBar
-              label="Players hidden"
+              label={t("Players hidden")}
               current={state.hiddenCount}
               total={state.expectedHiders}
             />
             <PlayerList
               players={state.players}
               showHidden
-              hiddenLabel="hidden"
+              hiddenLabel={t("hidden")}
               speakingIds={speakingIds}
             />
           </div>
@@ -115,16 +117,16 @@ export default function HidingPhase(props: Props) {
               onPano={onPano}
             />
           ) : (
-            <div className="hiding-preview-prompt">Оберіть точку на мапі, щоб завантажити Street View.</div>
+            <div className="hiding-preview-prompt">{t("Choose a spot on the map to load Street View.")}</div>
           )}
           <div className="round-hud">
-            <span>{resolved ? "Оберіть місце схованки" : "Спочатку оберіть місце на мапі"}</span>
+            <span>{resolved ? t("Choose your hiding spot") : t("First, choose a spot on the map")}</span>
             {hidingTime > 0 && <Timer seconds={hidingTime} onExpire={handleTimeUp} />}
           </div>
 
-          <div className="roster" role="status" aria-label="Hiding status">
+          <div className="roster" role="status" aria-label={t("Hiding status")}>
             <div className="roster-head">
-              <span>Hiding spots</span>
+              <span>{t("Hiding spots")}</span>
               <span className="roster-count">
                 {state.hiddenCount}/{state.expectedHiders}
               </span>
@@ -141,10 +143,10 @@ export default function HidingPhase(props: Props) {
                       p.name +
                       " — " +
                       (!p.connected
-                        ? "offline"
+                        ? t("offline")
                         : p.hasHidden
-                        ? "hidden"
-                        : "still picking")
+                        ? t("hidden")
+                        : t("still picking"))
                     }
                   >
                     <span className="roster-avatar" aria-hidden="true">
@@ -152,7 +154,7 @@ export default function HidingPhase(props: Props) {
                     </span>
                     <span className="roster-name">{p.name}</span>
                     <span className="roster-status">
-                      {!p.connected ? "off" : p.hasHidden ? "hidden" : "picking…"}
+                      {!p.connected ? t("off") : p.hasHidden ? t("hidden") : t("picking…")}
                     </span>
                   </div>
                 );
@@ -161,7 +163,7 @@ export default function HidingPhase(props: Props) {
           </div>
         </div>
 
-        <FloatingMap title="Pick your hiding spot" className="hiding-map-window">
+        <FloatingMap title={t("Pick your hiding spot")} className="hiding-map-window">
           <MapPicker
             value={markerSpot}
             onChange={pick}
@@ -173,15 +175,15 @@ export default function HidingPhase(props: Props) {
           <div className="overlay-bar hiding-confirm-bar">
             <span className="overlay-bar-msg">
               {coverage === "checking" ? (
-                <span className="muted">Завантаження панорами…</span>
+                <span className="muted">{t("Loading panorama…")}</span>
               ) : coverage === "none" ? (
-                <span style={{ color: "var(--warn)" }}>Street View не знайдено поруч.</span>
+                <span style={{ color: "var(--warn)" }}>{t("No Street View found nearby.")}</span>
               ) : (
-                <span className="muted">Ховатися в цій панорамі?</span>
+                <span className="muted">{t("Hide in this panorama?")}</span>
               )}
             </span>
             <button type="button" onClick={confirm} disabled={!canHide}>
-              Hide here
+              {t("Hide here")}
             </button>
           </div>
         )}

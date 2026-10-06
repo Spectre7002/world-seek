@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   messages: ChatMessage[];
@@ -13,6 +14,7 @@ interface Props {
 }
 
 export default function TextChat({ messages, onSend, unreadCount, onSetOpen, hasVoice }: Props) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -67,7 +69,7 @@ export default function TextChat({ messages, onSend, unreadCount, onSetOpen, has
       <button
         className={`chat-toggle secondary${unreadCount > 0 && !open ? " chat-toggle--unread" : ""}`}
         onClick={toggle}
-        aria-label={open ? "Close chat" : `Chat${unreadCount > 0 ? ` (${unreadCount} new)` : ""}`}
+        aria-label={open ? t("Close chat") : `${t("Chat")}${unreadCount > 0 ? ` (${unreadCount} new)` : ""}`}
         aria-expanded={open}
       >
         💬
@@ -81,19 +83,19 @@ export default function TextChat({ messages, onSend, unreadCount, onSetOpen, has
           {/* Only shown when docked as a desktop sidebar — the toggle button
               above is hidden then, so this is the only way to close it. */}
           <div className="chat-panel-header">
-            <span className="eyebrow">Chat</span>
+            <span className="eyebrow">{t("Chat")}</span>
             <button
               className="ghost modal-x"
               style={{ position: "static" }}
               onClick={toggle}
-              aria-label="Close chat"
+              aria-label={t("Close chat")}
             >
               ✕
             </button>
           </div>
           <div className="chat-messages">
             {messages.length === 0 && (
-              <p className="chat-empty muted">No messages yet.</p>
+              <p className="chat-empty muted">{t("No messages yet.")}</p>
             )}
             {messages.map((msg) => (
               <div key={msg.id} className="chat-msg">
@@ -117,12 +119,12 @@ export default function TextChat({ messages, onSend, unreadCount, onSetOpen, has
               className="chat-input"
               value={draft}
               maxLength={500}
-              placeholder="Message…"
+              placeholder={t("Message…")}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={onKeyDown}
             />
             <button className="secondary chat-send" onClick={send} disabled={!draft.trim()}>
-              Send
+              {t("Send")}
             </button>
           </div>
         </div>

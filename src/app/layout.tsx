@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Jersey_25, Jersey_10 } from "next/font/google";
 import "./globals.css";
 import ClickSound from "@/components/ClickSound";
+import { LanguageProvider } from "@/lib/language";
 
 // Pixel/arcade display — big stamped game-title headings. Single 400 weight.
 const display = Jersey_25({
@@ -38,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${display.variable} ${body.variable}`}>
       <body>
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <ClickSound />
       </body>
     </html>

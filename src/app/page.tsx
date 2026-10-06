@@ -8,9 +8,13 @@ import { DEFAULT_EMOJI } from "@/shared/emojis";
 import BudgetClosed from "@/components/BudgetClosed";
 import EmojiPicker from "@/components/EmojiPicker";
 import SfxControl from "@/components/SfxControl";
+import MusicControl from "@/components/MusicControl";
 import type { CreateAck } from "@/shared/types";
+import LanguageSwitch from "@/components/LanguageSwitch";
+import { useLanguage } from "@/lib/language";
 
 export default function Home() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [name, setName] = useState("");
   const [emoji, setEmoji] = useState(DEFAULT_EMOJI);
@@ -110,23 +114,27 @@ export default function Home() {
       />
       {/* Film-grain texture layered over the blurred video + terracotta field. */}
       <div className="bg-texture" aria-hidden="true" />
-      <div className="stack" style={{ width: 380, gap: 24, position: "relative", zIndex: 1 }}>
-        <div className="stack" style={{ gap: 10, textAlign: "center" }}>
+      <div className="stack home-shell" style={{ width: "min(900px, 100%)", gap: 12, position: "relative", zIndex: 1 }}>
+        <div className="home-toolbar"><LanguageSwitch /></div>
+        <div className="stack home-heading" style={{ gap: 6, textAlign: "center" }}>
           <span className="eyebrow" style={{ fontSize: 18 }}>
-            Open World · Street View
+            {t("Open World · Street View")}
           </span>
-          <h1 className="title" style={{ fontSize: 64 }}>
+          <h1 className="title" style={{ fontSize: 54 }}>
             World Seek
           </h1>
-          <p className="pullquote" style={{ margin: 0, fontSize: 18, color: "var(--text-dim)" }}>
-            Hide somewhere in the world. Let your friends find you on Street View.
+          <p className="pullquote" style={{ margin: 0, fontSize: 16, color: "var(--text-dim)" }}>
+            {t("Hide somewhere in the world. Let your friends find you on Street View.")}
           </p>
         </div>
 
+        <div className="home-form-grid">
+        <div className="home-create-card">
         <div className="card stack">
-          <span className="eyebrow"><span className="section-number">§01</span>Start a new game</span>
+          <span className="eyebrow">{t("Start a new game")}</span>
           <input
-            placeholder="Your name"
+            className="player-name-input"
+            placeholder={t("Your name")}
             value={name}
             maxLength={24}
             onChange={(e) => setName(e.target.value)}
@@ -138,20 +146,20 @@ export default function Home() {
             data-bwignore
           />
           <span className="muted" style={{ fontSize: 23 }}>
-            Pick your avatar
+            {t("Pick your avatar")}
           </span>
           <EmojiPicker value={emoji} onChange={setEmoji} />
           <button type="button" className="secondary" onClick={() => setSettingsOpen(true)}>
-            Settings
+            {t("Settings")}
           </button>
           <button disabled={!name.trim() || busy} onClick={startGame}>
-            {busy ? "Creating…" : "Start game"}
+            {busy ? t("Creating…") : t("Start game")}
           </button>
         </div>
 
         {error && (
           <p className="muted" role="alert" style={{ color: "#c0392b" }}>
-            {error}
+            {t(error)}
           </p>
         )}
 
@@ -165,37 +173,37 @@ export default function Home() {
               <button
                 className="ghost modal-x"
                 onClick={() => setSettingsOpen(false)}
-                aria-label="Close"
+                aria-label={t("Close")}
               >
                 ✕
               </button>
               <h2 className="title" style={{ fontSize: 22 }}>
-                Settings
+                {t("Settings")}
               </h2>
 
               <div className="stack" style={{ gap: 10 }}>
-                <span className="eyebrow">Game settings</span>
+                <span className="eyebrow">{t("Game settings")}</span>
                 <div className="chat-toggles">
                   <label className="chat-toggle-row">
-                    <span className="eyebrow">Text chat</span>
+                    <span className="eyebrow">{t("Text chat")}</span>
                     <button
                       type="button"
                       className={`toggle-btn${textChat ? " toggle-btn--on" : ""}`}
                       onClick={() => setTextChat((v) => !v)}
                       aria-pressed={textChat}
                     >
-                      {textChat ? "On" : "Off"}
+                      {textChat ? t("On") : t("Off")}
                     </button>
                   </label>
                   <label className="chat-toggle-row">
-                    <span className="eyebrow">Voice chat</span>
+                    <span className="eyebrow">{t("Voice chat")}</span>
                     <button
                       type="button"
                       className={`toggle-btn${voiceChat ? " toggle-btn--on" : ""}`}
                       onClick={() => setVoiceChat((v) => !v)}
                       aria-pressed={voiceChat}
                     >
-                      {voiceChat ? "On" : "Off"}
+                      {voiceChat ? t("On") : t("Off")}
                     </button>
                   </label>
                 </div>
@@ -204,35 +212,39 @@ export default function Home() {
               <div className="settings-divider" />
 
               <div className="stack" style={{ gap: 10 }}>
-                <span className="eyebrow">Your settings</span>
+                <span className="eyebrow">{t("Your settings")}</span>
                 <SfxControl />
+                <MusicControl />
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <button className="secondary" onClick={() => setSettingsOpen(false)}>
-                  Done
+                  {t("Done")}
                 </button>
               </div>
             </div>
           </div>
         )}
 
+        </div>
         <div className="card stack">
-          <span className="eyebrow"><span className="section-number">§02</span>Join with a code</span>
+          <span className="eyebrow">{t("Join with a code")}</span>
           <input
-            placeholder="e.g. abr-tyr"
+            className="player-name-input"
+            placeholder={t("e.g. abr-tyr")}
             value={code}
             maxLength={7}
             onChange={(e) => setCode(formatCode(e.target.value))}
             onKeyDown={(e) => e.key === "Enter" && joinGame()}
           />
           <button className="secondary" disabled={!code.trim()} onClick={joinGame}>
-            Join game
+            {t("Join game")}
           </button>
+        </div>
         </div>
 
         <p className="muted" style={{ textAlign: "center", fontSize: 13, margin: 0 }}>
-          Created by{" "}
+          {t("Created by")}{" "}
           <a href="https://ivanvilla.com" target="_blank" rel="noopener noreferrer">
             Ivan Villa
           </a>
@@ -242,7 +254,7 @@ export default function Home() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            source code on GitHub
+            {t("source code on GitHub")}
           </a>
         </p>
       </div>

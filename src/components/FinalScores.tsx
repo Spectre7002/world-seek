@@ -2,6 +2,7 @@
 
 import type { PublicState } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   state: PublicState;
@@ -11,6 +12,7 @@ interface Props {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default function FinalScores(props: Props) {
+  const { t, language } = useLanguage();
   const state = props.state;
   const onReturnToLobby = props.onReturnToLobby;
 
@@ -25,15 +27,19 @@ export default function FinalScores(props: Props) {
 
   let winnerText = "";
   if (state.solo) {
-    winnerText = "You scored " + topScore.toLocaleString() + " points!";
+    winnerText = language === "ru"
+      ? "Вы набрали " + topScore.toLocaleString() + " очков!"
+      : "You scored " + topScore.toLocaleString() + " points!";
   } else if (winners.length === 1) {
-    winnerText = winners[0].name + " wins!";
+    winnerText = language === "ru" ? "Победитель: " + winners[0].name + "!" : winners[0].name + " wins!";
   } else {
     const winnerNames = [];
     for (let i = 0; i < winners.length; i++) {
       winnerNames.push(winners[i].name);
     }
-    winnerText = "It's a tie: " + winnerNames.join(", ");
+    winnerText = language === "ru"
+      ? "Ничья: " + winnerNames.join(", ")
+      : "It's a tie: " + winnerNames.join(", ");
   }
 
   return (
@@ -41,7 +47,7 @@ export default function FinalScores(props: Props) {
       <div className="stack" style={{ width: 460, gap: 20 }}>
         <div className="stack" style={{ gap: 4 }}>
           <h1 className="title" style={{ fontSize: 34 }}>
-            🏆 Game over
+            🏆 {t("Game over")}
           </h1>
           <p className="muted" style={{ margin: 0 }}>
             {winnerText}
@@ -60,7 +66,7 @@ export default function FinalScores(props: Props) {
                     <img className="emoji-img" src={emojiUrl(p.emoji)} alt="" />
                   </span>
                   <strong>{p.name}</strong>
-                  {p.id === state.youId && <span className="badge">you</span>}
+                  {p.id === state.youId && <span className="badge">{t("you")}</span>}
                 </div>
                 <strong style={{ fontVariantNumeric: "tabular-nums" }}>
                   {p.totalScore.toLocaleString()}
@@ -72,10 +78,10 @@ export default function FinalScores(props: Props) {
 
         {state.youAreGameMaster ? (
           <button type="button" onClick={onReturnToLobby}>
-            Back to lobby
+            {t("Back to lobby")}
           </button>
         ) : (
-          <p className="muted">Waiting for the host to return to the lobby…</p>
+          <p className="muted">{t("Waiting for the host to return to the lobby…")}</p>
         )}
       </div>
     </div>

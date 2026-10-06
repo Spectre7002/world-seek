@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import EmojiPicker from "./EmojiPicker";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   code: string;
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function JoinForm(props: Props) {
+  const { t } = useLanguage();
   const code = props.code;
   const error = props.error;
   const onJoin = props.onJoin;
@@ -52,18 +54,18 @@ export default function JoinForm(props: Props) {
     <div className="center-screen">
       <div className="stack" style={{ width: 440, gap: 20 }}>
         <div style={{ textAlign: "center" }}>
-          <span className="eyebrow">OPEN WORLD · STREET VIEW</span>
+          <span className="eyebrow">{t("Open World · Street View")}</span>
           <h1 className="title" style={{ fontSize: 36, marginTop: 4 }}>
             World Seek
           </h1>
           <p className="muted" style={{ fontSize: 14, marginTop: 6 }}>
-            Прячься в любой точке мира. Дай друзьям найти тебя в Street View.
+            {t("Hide somewhere in the world. Let your friends find you on Street View.")}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="card stack" style={{ gap: 18 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span className="eyebrow">Вход в игру</span>
+            <span className="eyebrow">{t("Join the game")}</span>
             <span className="code-pill">{code}</span>
           </div>
 
@@ -74,10 +76,11 @@ export default function JoinForm(props: Props) {
           )}
 
           <div className="stack" style={{ gap: 6 }}>
-            <label className="setting-label">Ваше имя</label>
+            <label className="setting-label">{t("Your name label")}</label>
             <input
+              className="player-name-input"
               type="text"
-              placeholder="Введите ваше имя..."
+              placeholder={t("Enter your name...")}
               value={name}
               onChange={handleNameChange}
               maxLength={20}
@@ -87,7 +90,7 @@ export default function JoinForm(props: Props) {
           </div>
 
           <div className="stack" style={{ gap: 8 }}>
-            <label className="setting-label">Выберите аватар</label>
+            <label className="setting-label">{t("Choose avatar")}</label>
             <EmojiPicker
               value={selectedEmoji}
               onChange={handleEmojiChange}
@@ -100,7 +103,7 @@ export default function JoinForm(props: Props) {
             className="btn-primary-large"
             disabled={!name.trim()}
           >
-            Присоединиться к игре
+            {t("Join")}
           </button>
         </form>
       </div>

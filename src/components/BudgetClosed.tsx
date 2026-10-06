@@ -1,5 +1,8 @@
 "use client";
 
+import LanguageSwitch from "./LanguageSwitch";
+import { useLanguage } from "@/lib/language";
+
 const REPO_URL = "https://github.com/heyivanvilla/world-seek";
 
 /** First of next month, in the reader's locale — when the meter rolls over. */
@@ -20,47 +23,46 @@ function nextResetLabel(): string {
  * people at the source, since self-hosting with your own key has no such cap.
  */
 export default function BudgetClosed({ inGame = false }: { inGame?: boolean }) {
+  const { t } = useLanguage();
   return (
     <div className="center-screen">
       <div className="stack" style={{ width: 420, gap: 20 }}>
+        <LanguageSwitch />
         <div className="stack" style={{ gap: 10, textAlign: "center" }}>
           <span className="eyebrow" style={{ fontSize: 18 }}>
-            Back on {nextResetLabel()}
+            {t("Back on")} {nextResetLabel()}
           </span>
           <h1 className="title" style={{ fontSize: 44 }}>
-            Out of map budget 🌍
+            {t("Out of map budget 🌍")}
           </h1>
           <p className="pullquote" style={{ margin: 0, fontSize: 18, color: "var(--text-dim)" }}>
             {inGame
-              ? "This game can't start — the month's Google Maps budget just ran out."
-              : "World Seek has used up this month's Google Maps budget."}
+              ? t("This game can't start — the month's Google Maps budget just ran out.")
+              : t("World Seek has used up this month's Google Maps budget.")}
           </p>
         </div>
 
         <div className="card stack">
-          <span className="eyebrow">What happened</span>
+          <span className="eyebrow">{t("What happened")}</span>
           <p className="muted" style={{ margin: 0, fontSize: 23 }}>
-            Every map and Street View panorama in this game is a paid Google API
-            call, funded out of pocket. There's a monthly cap so it can't run
-            away — and it's been reached. The meter resets on the 1st.
+            {t("Every map and Street View panorama in this game is a paid Google API call, funded out of pocket. There's a monthly cap so it can't run away — and it's been reached. The meter resets on the 1st.")}
           </p>
         </div>
 
         <div className="card stack">
-          <span className="eyebrow">Play it anyway 🛠️</span>
+          <span className="eyebrow">{t("Play it anyway 🛠️")}</span>
           <p className="muted" style={{ margin: 0, fontSize: 23 }}>
-            World Seek is open source. Run your own copy with your own Google
-            Maps key and there's no cap but the one you set.
+            {t("World Seek is open source. Run your own copy with your own Google Maps key and there's no cap but the one you set.")}
           </p>
           <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
             <button type="button" style={{ width: "100%" }}>
-              Get the source code
+              {t("Get the source code")}
             </button>
           </a>
         </div>
 
         <p className="muted" style={{ textAlign: "center", fontSize: 13, margin: 0 }}>
-          Made by{" "}
+          {t("Made by")}{" "}
           <a href="https://ivanvilla.com" target="_blank" rel="noopener noreferrer">
             Ivan Villa
           </a>

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { EMOJIS, emojiUrl } from "@/shared/emojis";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   value: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function EmojiPicker(props: Props) {
+  const { t } = useLanguage();
   const value = props.value;
   const onChange = props.onChange;
   const taken = props.taken;
@@ -33,7 +35,7 @@ export default function EmojiPicker(props: Props) {
   );
 
   return (
-    <div className="emoji-grid" role="radiogroup" aria-label="Choose your avatar">
+    <div className="emoji-grid" role="radiogroup" aria-label={t("Choose your avatar")}>
       {EMOJIS.map(function (e) {
         const selected = e.id === value;
         const disabled = takenSet.has(e.id) && !selected;

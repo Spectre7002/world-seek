@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { playRoundStartSfx } from "@/lib/sfx";
+import { useLanguage } from "@/lib/language";
 
 export default function RoundStartNotice(props: { round: number }) {
+  const { t } = useLanguage();
   const [visible, setVisible] = useState(true);
   const soundPlayed = useRef(false);
 
@@ -24,7 +26,7 @@ export default function RoundStartNotice(props: { round: number }) {
 
   return (
     <div className="round-start-notice" role="status">
-      Раунд {props.round} розпочато!
+      {t("Round")} {props.round} {t("started!")}
     </div>
   );
 }

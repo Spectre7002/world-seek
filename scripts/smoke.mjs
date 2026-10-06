@@ -60,6 +60,9 @@ let sA = await nextState(a, (s) => s.players.length === 3);
 check("lobby shows 3 players", sA.players.length === 3);
 check("Alice is GM", sA.youAreGameMaster === true);
 
+// Two cycles verify players can hide again and progress through every turn.
+await emitAck(a, "game:settings", { settings: { multiplayerCycles: 2 } });
+
 // non-GM start is ignored
 b.emit("game:start");
 await wait(200);
@@ -78,18 +81,21 @@ c.emit("hide:confirm", spots[2]);
 
 sA = await nextState(a, (s) => s.phase === "finding");
 check("advanced to finding", sA.phase === "finding");
-check("3 rounds total", sA.totalRounds === 3);
+check("two cycles configured", sA.totalRounds === 2);
 
 const ids = {};
 sA.players.forEach((p) => (ids[p.name] = p.id));
 const byId = { [ids.Alice]: a, [ids.Bob]: b, [ids.Cara]: c };
+let previousTargetId = "";
 
-for (let round = 0; round < 3; round++) {
+for (let round = 0; round < 6; round++) {
   // wait until all three sockets have a state for this round
   await wait(100);
-  const targetId = [a, b, c].find((s) => s.last?.currentTarget)?.last
-    ?.currentTarget?.id;
+  const targetId = [a, b, c].find((s) => s.last?.youAreTarget)?.last?.youId;
   check(`round ${round + 1} has a target`, !!targetId);
+  if (round % 3 === 0) previousTargetId = "";
+  check(`round ${round + 1} uses a new target in this cycle`, !!targetId && targetId !== previousTargetId);
+  previousTargetId = targetId;
 
   // target sees null currentTarget + youAreTarget true
   const targetSock = byId[targetId];
@@ -103,7 +109,7 @@ for (let round = 0; round < 3; round++) {
     i++;
   }
 
-  const res = await nextState(a, (s) => s.phase === "results" && s.currentRound === round);
+  const res = await nextState(a, (s) => s.phase === "results" && s.result?.targetId === targetId);
   check(`round ${round + 1} produced results`, res.result != null);
   check(
     `round ${round + 1} reveals real coords`,
@@ -117,8 +123,15 @@ for (let round = 0; round < 3; round++) {
   );
 
   a.emit("round:next");
-  if (round < 2) {
-    await nextState(a, (s) => s.phase === "finding" && s.currentRound === round + 1);
+  if (round === 2) {
+    await Promise.all([a, b, c].map((s) => nextState(s, (state) => state.phase === "hiding")));
+    check("second hiding cycle resets all spots", [a, b, c].every((s) => !s.last.youHaveHidden));
+    a.emit("hide:confirm", { ...spots[0], panoId: "pano-A-cycle-2" });
+    b.emit("hide:confirm", { ...spots[1], panoId: "pano-B-cycle-2" });
+    c.emit("hide:confirm", { ...spots[2], panoId: "pano-C-cycle-2" });
+    await Promise.all([a, b, c].map((s) => nextState(s, (state) => state.phase === "finding")));
+  } else if (round < 5) {
+    await nextState(a, (s) => s.phase === "finding");
   } else {
     const fin = await nextState(a, (s) => s.phase === "finished");
     check("game finished", fin.phase === "finished");

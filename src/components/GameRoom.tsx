@@ -15,8 +15,11 @@ import FinalScores from "./FinalScores";
 import TextChat from "./TextChat";
 import VoiceChat from "./VoiceChat";
 import RoundStartNotice from "./RoundStartNotice";
+import AmbientMusic from "./AmbientMusic";
+import { useLanguage } from "@/lib/language";
 
 export default function GameRoom(props: { code: string }) {
+  const { t } = useLanguage();
   const code = props.code;
   const game = useGame(code);
 
@@ -37,7 +40,7 @@ export default function GameRoom(props: { code: string }) {
   if (game.status === "connecting") {
     return (
       <div className="center-screen">
-        <p className="muted">Connecting…</p>
+        <p className="muted">{t("Connecting…")}</p>
       </div>
     );
   }
@@ -114,8 +117,9 @@ export default function GameRoom(props: { code: string }) {
         onLeave={game.leave}
         onClose={game.close}
       />
+      <AmbientMusic active={s.phase === "hiding" || s.phase === "finding"} />
       {!game.connected && (
-        <div className="reconnect-banner">Reconnecting…</div>
+        <div className="reconnect-banner">{t("Reconnecting…")}</div>
       )}
 
       {voiceChatEnabled && (

@@ -4,6 +4,8 @@ import { useState } from "react";
 import QRCode from "react-qr-code";
 import type { PublicState, Settings } from "@/shared/types";
 import PlayerList from "./PlayerList";
+import LanguageSwitch from "./LanguageSwitch";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   state: PublicState;
@@ -14,6 +16,7 @@ interface Props {
 
 export default function Lobby(props: Props) {
   const state = props.state;
+  const { t } = useLanguage();
   const onStart = props.onStart;
   const onUpdateSettings = props.onUpdateSettings;
   const speakingIds = props.speakingIds;
@@ -96,16 +99,16 @@ export default function Lobby(props: Props) {
   }
 
   function formatTime(seconds: number): string {
-    if (seconds === 0) return "∞ (Без лимита)";
+    if (seconds === 0) return "∞ (" + t("No limit") + ")";
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     if (mins > 0 && secs > 0) {
-      return mins + " мин " + secs + " сек";
+      return mins + t(" min ") + secs + t(" sec");
     }
     if (mins > 0) {
-      return mins + " мин";
+      return mins + t(" min");
     }
-    return secs + " сек";
+    return secs + t(" sec");
   }
 
   const currentRoundsVal = state.settings.multiplayerCycles || 5;
@@ -115,13 +118,14 @@ export default function Lobby(props: Props) {
   return (
     <>
       <div className="center-screen">
-        <div className="stack" style={{ width: 460, gap: 18 }}>
+        <div className="stack lobby-shell" style={{ width: 460, gap: 18 }}>
           
           <div className="stack" style={{ gap: 8 }}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
-              <h1 className="title">Лобби игры</h1>
+              <h1 className="title">{t("Game lobby")}</h1>
+              <LanguageSwitch />
               <span className="badge good">
-                {isSolo ? "Соло режим" : "Мультиплеер"}
+                {isSolo ? t("Solo mode") : t("Multiplayer")}
               </span>
             </div>
 
@@ -137,7 +141,7 @@ export default function Lobby(props: Props) {
                   type="button"
                   className="secondary qr-button"
                   onClick={handleOpenQR}
-                  aria-label="Показать QR-код"
+                  aria-label={t("Show QR code")}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M4 8V5a1 1 0 0 1 1-1h3" />
@@ -148,7 +152,7 @@ export default function Lobby(props: Props) {
                   </svg>
                 </button>
                 <button type="button" className="secondary" onClick={copyLink}>
-                  {copied ? "Скопировано!" : "Скопировать ссылку"}
+                  {copied ? t("Copied!") : t("Copy link")}
                 </button>
               </div>
             </div>
@@ -156,9 +160,9 @@ export default function Lobby(props: Props) {
 
           <div className="card stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="eyebrow">Игроки ({state.players.length})</span>
+              <span className="eyebrow">{t("Players")} ({state.players.length})</span>
               <span className="muted" style={{ fontSize: 13 }}>
-                {state.players.length}/10 участников
+                {state.players.length}/10 {t("participants")}
               </span>
             </div>
             <PlayerList players={state.players} speakingIds={speakingIds} />
@@ -166,14 +170,14 @@ export default function Lobby(props: Props) {
 
           <div className="card stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="eyebrow">Настройки матча ⚙️</span>
-              {!isGM && <span className="badge">Только хост</span>}
+              <span className="eyebrow">{t("Match settings ⚙️")}</span>
+              {!isGM && <span className="badge">{t("Host only")}</span>}
             </div>
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">Количество раундов</span>
-                <span className="setting-desc">Кругов пряток за игру</span>
+                <span className="setting-label">{t("Number of rounds")}</span>
+                <span className="setting-desc">{t("Hide-and-seek cycles per game")}</span>
               </div>
               {isGM ? (
                 <div className="stepper-control">
@@ -196,14 +200,14 @@ export default function Lobby(props: Props) {
                   </button>
                 </div>
               ) : (
-                <span className="setting-value-static">{currentRoundsVal} раундов</span>
+                <span className="setting-value-static">{currentRoundsVal} {t("rounds")}</span>
               )}
             </div>
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">Таймер на прятки</span>
-                <span className="setting-desc">Время на выбор точки</span>
+                <span className="setting-label">{t("Hiding timer")}</span>
+                <span className="setting-desc">{t("Time to choose a spot")}</span>
               </div>
               {isGM ? (
                 <div className="stepper-control">
@@ -232,8 +236,8 @@ export default function Lobby(props: Props) {
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">Таймер на поиск</span>
-                <span className="setting-desc">Время на угадывание</span>
+                <span className="setting-label">{t("Finding timer")}</span>
+                <span className="setting-desc">{t("Time to make a guess")}</span>
               </div>
               {isGM ? (
                 <div className="stepper-control">
@@ -262,9 +266,9 @@ export default function Lobby(props: Props) {
 
             <div className="setting-row">
               <div className="setting-info">
-                <span className="setting-label">Дозволити неофіційне покриття</span>
+                <span className="setting-label">{t("Allow unofficial coverage")}</span>
                 <span className="setting-desc">
-                  Будинки та неофіційні фотосфери для схованок
+                  {t("Buildings and unofficial photospheres for hiding spots")}
                 </span>
               </div>
               <button
@@ -275,26 +279,28 @@ export default function Lobby(props: Props) {
                 disabled={!isGM}
                 onClick={toggleUnofficialCoverage}
               >
-                {state.settings.allowUnofficialCoverage ? "Увімкнено" : "Вимкнено"}
+                {state.settings.allowUnofficialCoverage
+                  ? t("Official and unofficial")
+                  : t("Official only")}
               </button>
             </div>
           </div>
 
           {isGM ? (
-            <div className="card stack" style={{ gap: 10 }}>
+            <div className="card stack lobby-start-card" style={{ gap: 10 }}>
               <button type="button" className="btn-primary-large" onClick={onStart}>
-                {isSolo ? "Играть соло" : "Начать игру"}
+                {isSolo ? t("Play solo") : t("Start game")}
               </button>
               {isSolo && (
                 <p className="muted" style={{ margin: 0, fontSize: 13, textAlign: "center" }}>
-                  Вы один в комнате. Вы будете угадывать точки от сервера. Пригласите друга для соперничества!
+                  {t("You're alone in the room. Guess locations picked by the server. Invite a friend to compete!")}
                 </p>
               )}
             </div>
           ) : (
             <div className="card" style={{ textAlign: "center" }}>
               <p className="muted" style={{ margin: 0, fontSize: 14 }}>
-                Ожидание старта игры от хоста…
+                {t("Waiting for the host to start the game…")}
               </p>
             </div>
           )}
@@ -307,12 +313,12 @@ export default function Lobby(props: Props) {
             type="button"
             className="ghost modal-x"
             onClick={handleCloseQR}
-            aria-label="Закрыть"
+            aria-label={t("Close dialog")}
           >
             ✕
           </button>
           <h2 className="title" style={{ fontSize: 22 }}>
-            Сканируйте для входа
+            {t("Scan to join")}
           </h2>
           <div className="qr-code-wrap">
             <QRCode

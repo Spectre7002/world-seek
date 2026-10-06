@@ -9,6 +9,7 @@ import PlayerList from "./PlayerList";
 import WaitingBar from "./WaitingBar";
 import Timer from "./Timer";
 import FloatingMap from "./FloatingMap";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   state: PublicState;
@@ -21,13 +22,14 @@ const PREVIEW_THROTTLE_MS = 100;
 const TENTATIVE_OPACITY = 0.4;
 
 export default function FindingPhase(props: Props) {
+  const { t } = useLanguage();
   const state = props.state;
   const onGuess = props.onGuess;
   const onPreview = props.onPreview;
   const onView = props.onView;
 
   const [guess, setGuess] = useState<LatLng | null>(null);
-  const roundLabel = "Round " + (state.currentRound + 1) + " of " + state.totalRounds;
+  const roundLabel = t("Round") + " " + (state.currentRound + 1) + " " + t("of") + " " + state.totalRounds;
 
   const lastSent = useRef(0);
   const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,8 +87,8 @@ export default function FindingPhase(props: Props) {
     return (
       <WatchView
         roundLabel={roundLabel}
-        title="Everyone's hunting for you 🔎"
-        emptyHint="Sit tight while the others guess your hiding spot."
+        title={t("Everyone's hunting for you 🔎")}
+        emptyHint={t("Sit tight while the others guess your hiding spot.")}
         markers={liveMarkers}
         views={state.liveViews}
         current={state.guessedCount}
@@ -99,8 +101,8 @@ export default function FindingPhase(props: Props) {
     return (
       <WatchView
         roundLabel={roundLabel}
-        title="Guess locked in ✅"
-        emptyHint="Waiting for the other hunters to lock in."
+        title={t("Guess locked in ✅")}
+        emptyHint={t("Waiting for the other hunters to lock in.")}
         markers={liveMarkers}
         views={state.liveViews}
         current={state.guessedCount}
@@ -142,7 +144,7 @@ export default function FindingPhase(props: Props) {
           <div className="overlay-top overlay-top--emoji">
             {state.solo ? (
               <span>
-                Where in the world is this? 🌍 ({roundLabel})
+                {t("Where in the world is this?")} 🌍 ({roundLabel})
               </span>
             ) : (
               <>
@@ -156,7 +158,7 @@ export default function FindingPhase(props: Props) {
                   </span>
                 )}
                 <span>
-                  Where is <strong>{state.currentTarget ? state.currentTarget.name : "player"}</strong> hiding?
+                  {t("Where is")} <strong>{state.currentTarget ? state.currentTarget.name : "player"}</strong> {t("hiding?")}
                 </span>
               </>
             )}
@@ -169,10 +171,10 @@ export default function FindingPhase(props: Props) {
         </div>
 
         <div className="round-hud">
-          <span>{roundLabel} · drop your guess</span>
+          <span>{roundLabel} · {t("drop your guess")}</span>
           {findingTime > 0 && <Timer seconds={findingTime} onExpire={handleTimeUp} />}
         </div>
-        <FloatingMap title="Move the map and place your guess" className="guess-map-window">
+        <FloatingMap title={t("Move the map and place your guess")} className="guess-map-window">
           <MapPicker
             value={guess}
             onChange={handleChange}
@@ -184,14 +186,14 @@ export default function FindingPhase(props: Props) {
       </div>
 
       <div className="overlay-bar guess-confirm-bar">
-        {!guess && <span className="muted">Click the map to place your guess.</span>}
-        {guess && <span className="muted">Lock it in?</span>}
+        {!guess && <span className="muted">{t("Click the map to place your guess.")}</span>}
+        {guess && <span className="muted">{t("Lock it in?")}</span>}
         <button
           type="button"
           onClick={handleConfirmGuess}
           disabled={!guess}
         >
-          Guess here
+          {t("Guess here")}
         </button>
       </div>
     </div>
@@ -208,6 +210,7 @@ function WatchView(props: {
   total: number;
   players?: PublicPlayer[];
 }) {
+  const { t } = useLanguage();
   const roundLabel = props.roundLabel;
   const title = props.title;
   const emptyHint = props.emptyHint;
@@ -246,8 +249,8 @@ function WatchView(props: {
         <div className="round-streetview watch-view">
           <div className="watch-target-heading">
             <strong>{title}</strong>
-            <span>{roundLabel} · live hunter view</span>
-            <div className="watch-hunter-tabs" role="tablist" aria-label="Choose a hunter">
+            <span>{roundLabel} · {t("live hunter view")}</span>
+            <div className="watch-hunter-tabs" role="tablist" aria-label={t("Choose a hunter")}>
               {views.map(function (view) {
                 return (
                   <button
@@ -275,17 +278,17 @@ function WatchView(props: {
             />
           ) : (
             <div className="watch-waiting-hint">
-              {views.length === 0 ? emptyHint : "Завантаження Street View шукача…"}
+              {views.length === 0 ? emptyHint : t("Loading hunter's Street View…")}
             </div>
           )}
         </div>
-        <FloatingMap title="Hunters' guesses" className="watch-map-window">
+        <FloatingMap title={t("Hunters' guesses")} className="watch-map-window">
           <MapPicker markers={markers} />
         </FloatingMap>
       </div>
       <div className="overlay-bar">
         <div style={{ minWidth: 220 }}>
-          <WaitingBar label="Guesses in" current={current} total={total} />
+          <WaitingBar label={t("Guesses in")} current={current} total={total} />
         </div>
       </div>
     </div>

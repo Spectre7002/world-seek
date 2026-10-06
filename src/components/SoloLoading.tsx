@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { HidingSpot } from "@/shared/types";
 import { generateSoloTarget } from "@/lib/soloLocation";
+import { useLanguage } from "@/lib/language";
 
 interface Props {
   /** Send the resolved location up to the server to seed this solo round. */
@@ -16,6 +17,7 @@ interface Props {
  * once and unmounts as soon as the server echoes back a currentTarget.
  */
 export default function SoloLoading({ onTarget }: Props) {
+  const { t } = useLanguage();
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
@@ -39,17 +41,17 @@ export default function SoloLoading({ onTarget }: Props) {
       <div className="stack" style={{ width: 420, gap: 18, textAlign: "center" }}>
         {error ? (
           <>
-            <h1 className="title">Couldn't find a spot 😕</h1>
+            <h1 className="title">{t("Couldn't find a spot 😕")}</h1>
             <p className="muted" style={{ margin: 0 }}>
-              Street View didn't answer. Give it another try.
+              {t("Street View didn't answer. Give it another try.")}
             </p>
-            <button onClick={() => setAttempt((a) => a + 1)}>Try again</button>
+            <button onClick={() => setAttempt((a) => a + 1)}>{t("Try again")}</button>
           </>
         ) : (
           <>
-            <h1 className="title">Finding a location… 🌍</h1>
+            <h1 className="title">{t("Finding a location… 🌍")}</h1>
             <p className="muted" style={{ margin: 0 }}>
-              Dropping you somewhere in the world.
+              {t("Dropping you somewhere in the world.")}
             </p>
           </>
         )}

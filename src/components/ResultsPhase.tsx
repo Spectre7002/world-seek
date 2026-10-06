@@ -4,6 +4,7 @@ import type { PublicState } from "@/shared/types";
 import { formatDistance } from "@/shared/scoring";
 import { emojiUrl } from "@/shared/emojis";
 import MapPicker, { type MapLine, type MapMarker } from "./MapPicker";
+import { useLanguage } from "@/lib/language";
 
 const PALETTE = [
   "#4a5d2f", "#9a3324", "#c8843d", "#3a5a6e", "#7d5a3a", "#5e7540",
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function ResultsPhase(props: Props) {
+  const { t } = useLanguage();
   const state = props.state;
   const onNext = props.onNext;
   const result = state.result;
@@ -24,7 +26,7 @@ export default function ResultsPhase(props: Props) {
   if (!result) {
     return (
       <div className="center-screen">
-        <p className="muted">Tallying the round…</p>
+        <p className="muted">{t("Tallying the round…")}</p>
       </div>
     );
   }
@@ -39,7 +41,7 @@ export default function ResultsPhase(props: Props) {
       lng: result.real.lng,
       icon: state.solo ? undefined : result.targetEmoji,
       size: 54,
-      title: state.solo ? "The real spot" : result.targetName + "'s real hiding spot",
+      title: state.solo ? t("The real spot") : result.targetName + "'s " + t("real hiding spot"),
     },
   ];
 
@@ -75,10 +77,10 @@ export default function ResultsPhase(props: Props) {
             )}
             <span>
               {state.solo ? (
-                <>This was the spot 📍</>
+                <>{t("This was the spot 📍")}</>
               ) : (
                 <>
-                  <strong>{result.targetName}</strong> was hiding here 📍
+                  <strong>{result.targetName}</strong>{t(" was hiding here 📍")}
                 </>
               )}
             </span>
@@ -97,10 +99,10 @@ export default function ResultsPhase(props: Props) {
         >
           <div className="stack" style={{ gap: 4 }}>
             <span className="muted">
-              Round {state.currentRound + 1} of {state.totalRounds}
+              {t("Round")} {state.currentRound + 1} {t("of")} {state.totalRounds}
             </span>
             <h2 className="title" style={{ fontSize: 22 }}>
-              This round's guesses
+              {t("This round's guesses")}
             </h2>
           </div>
 
@@ -122,7 +124,7 @@ export default function ResultsPhase(props: Props) {
           </div>
 
           <div className="stack" style={{ gap: 8 }}>
-            <strong className="muted">Standings</strong>
+            <strong className="muted">{t("Standings")}</strong>
             {state.players.map(function (p) {
               return (
                 <div key={p.id} className="player-row">
@@ -132,7 +134,7 @@ export default function ResultsPhase(props: Props) {
                     </span>
                     <span>
                       {p.name}
-                      {p.id === state.youId && <span className="badge">you</span>}
+                      {p.id === state.youId && <span className="badge">{t("you")}</span>}
                     </span>
                   </div>
                   <strong>{p.totalScore.toLocaleString()}</strong>
@@ -143,10 +145,10 @@ export default function ResultsPhase(props: Props) {
 
           {state.youAreGameMaster ? (
             <button type="button" onClick={onNext}>
-              {isLast ? "See final scores" : "Next round"}
+              {isLast ? t("See final scores") : t("Next round")}
             </button>
           ) : (
-            <p className="muted">Waiting for the host to continue…</p>
+            <p className="muted">{t("Waiting for the host to continue…")}</p>
           )}
         </div>
       </div>
