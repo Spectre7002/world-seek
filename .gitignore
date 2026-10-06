@@ -28,3 +28,5 @@ audit/
 
 # throwaway probe & load scripts kept at the repo root (see scripts/ for real ones)
 /_*.mjs
+
+temp_reference/

@@ -66,13 +66,9 @@ export default function StreetView(props: Props) {
   const pendingHistoryIndexRef = useRef<number | null>(null);
   const pendingHistoryPanoRef = useRef<string | null>(null);
   const startPanoRef = useRef<string | null>(null);
-  const roadSearchRef = useRef(0);
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
   const [panoHistory, setPanoHistory] = useState<string[]>([]);
-  const [roadStatus, setRoadStatus] = useState("");
-  const [findingRoad, setFindingRoad] = useState(false);
-  const nextHeadingRef = useRef<{ panoId: string; heading: number } | null>(null);
   const { t } = useLanguage();
 
   const onPanoChanged = useRef(function (panoId: string) {
@@ -136,16 +132,6 @@ export default function StreetView(props: Props) {
           const id = pano.getPano();
           if (id) {
             onPanoChanged.current(id);
-            const nextHeading = nextHeadingRef.current;
-            if (nextHeading?.panoId === id) {
-              pano.setPov({ heading: nextHeading.heading, pitch: pano.getPov().pitch });
-              window.requestAnimationFrame(function () {
-                if (pano.getPano() === id) {
-                  pano.setPov({ heading: nextHeading.heading, pitch: pano.getPov().pitch });
-                }
-                if (nextHeadingRef.current?.panoId === id) nextHeadingRef.current = null;
-              });
-            }
           }
         });
 
@@ -179,11 +165,6 @@ export default function StreetView(props: Props) {
       pendingHistoryPanoRef.current = null;
       startPanoRef.current = null;
       setPanoHistory([]);
-      setRoadStatus("");
-      setFindingRoad(false);
-      return function () {
-        roadSearchRef.current += 1;
-      };
     },
     [mode, position?.lat, position?.lng, panoId]
   );
@@ -296,131 +277,6 @@ export default function StreetView(props: Props) {
     if (historyIndexRef.current > 0) navigateToHistory(historyIndexRef.current - 1);
   }
 
-  function findNearestRoad() {
-    const pano = panoRef.current;
-    const location = pano?.getPosition();
-    if (!pano || !location || findingRoad) return;
-    const activePano = pano;
-    const startLocation = location;
-    setFindingRoad(true);
-    setRoadStatus("");
-    const searchId = ++roadSearchRef.current;
-    const startPanoId = pano.getPano();
-    const service = new google.maps.StreetViewService();
-    const radii = [100, 300, 750, 1500, 3000];
-    const visited = new Set<string>(startPanoId ? [startPanoId] : []);
-
-    function finish(panoId: string, nextHeading: number) {
-      if (searchId !== roadSearchRef.current) return;
-      nextHeadingRef.current = { panoId, heading: nextHeading };
-      activePano.setPano(panoId);
-      setFindingRoad(false);
-      setRoadStatus("");
-    }
-
-    function continueAlongRoad(
-      currentId: string,
-      links: google.maps.StreetViewLink[],
-      preferredHeading: number,
-      remainingHops: number,
-      lastHeading: number,
-    ) {
-      if (searchId !== roadSearchRef.current) return;
-      const candidates = links.filter(function (link) {
-        return Boolean(link.pano && link.heading != null && !visited.has(link.pano));
-      });
-      if (remainingHops === 0 || candidates.length === 0) {
-        finish(currentId, lastHeading);
-        return;
-      }
-
-      const next = candidates.reduce(function (best, link) {
-        const bestDelta = Math.abs(((best.heading! - preferredHeading + 540) % 360) - 180);
-        const nextDelta = Math.abs(((link.heading! - preferredHeading + 540) % 360) - 180);
-        return nextDelta < bestDelta ? link : best;
-      });
-      if (!next.pano || next.heading == null) {
-        finish(currentId, lastHeading);
-        return;
-      }
-
-      const nextId = next.pano;
-      const nextHeading = next.heading;
-      visited.add(nextId);
-      service.getPanorama(
-        { pano: nextId, source: google.maps.StreetViewSource.OUTDOOR },
-        function (data, status) {
-          if (searchId !== roadSearchRef.current) return;
-          const nextLinks =
-            status === google.maps.StreetViewStatus.OK ? data?.links || [] : [];
-          continueAlongRoad(
-            nextId,
-            nextLinks,
-            nextHeading,
-            remainingHops - 1,
-            nextHeading,
-          );
-        },
-      );
-    }
-
-    function begin(startId: string, links: google.maps.StreetViewLink[], direction: number) {
-      continueAlongRoad(startId, links, direction, 4, direction);
-    }
-
-    const currentLinks = (pano.getLinks() || []).filter(function (
-      link,
-    ): link is google.maps.StreetViewLink {
-      return Boolean(link?.pano && link.heading != null && link.pano !== startPanoId);
-    });
-    if (startPanoId && currentLinks.length > 0) {
-      begin(startPanoId, currentLinks, heading);
-      return;
-    }
-
-    let attempt = 0;
-    function searchNearby() {
-      service.getPanorama(
-        {
-          location: startLocation,
-          radius: radii[attempt],
-          preference: google.maps.StreetViewPreference.NEAREST,
-          source: google.maps.StreetViewSource.OUTDOOR,
-        },
-        function (data, status) {
-          if (searchId !== roadSearchRef.current) return;
-          const foundId = data?.location?.pano;
-          if (
-            status === google.maps.StreetViewStatus.OK &&
-            foundId &&
-            foundId !== startPanoId
-          ) {
-            const foundPos = data.location?.latLng;
-            const direction = foundPos
-              ? google.maps.geometry.spherical.computeHeading(startLocation, foundPos)
-              : heading;
-            const links = (data.links || []).filter(function (
-              link,
-            ): link is google.maps.StreetViewLink {
-              return Boolean(link?.pano && link.heading != null);
-            });
-            visited.add(foundId);
-            begin(foundId, links, direction);
-            return;
-          }
-          attempt += 1;
-          if (attempt < radii.length) {
-            searchNearby();
-          } else {
-            setFindingRoad(false);
-            setRoadStatus(t("No official road panorama found nearby."));
-          }
-        },
-      );
-    }
-    searchNearby();
-  }
-
   function emitView(pano: google.maps.StreetViewPanorama) {
     if (applyingFollow.current) return;
     const cb = onViewRef.current;
@@ -442,7 +298,11 @@ export default function StreetView(props: Props) {
       style={{ position: "relative", width: "100%", height: "100%" }}
       className={className}
     >
-      <div ref={ref} style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }} />
+      <div
+        ref={ref}
+        className="street-view-canvas"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
       <div className="sv-heading-band" aria-hidden="true">
         {COMPASS_POINTS.map(function (point) {
           const delta = ((point.bearing - heading + 540) % 360) - 180;
@@ -467,9 +327,6 @@ export default function StreetView(props: Props) {
             <button type="button" onClick={goBack} disabled={historyIndexRef.current <= 0}>
               {t("Back")}
             </button>
-            <button type="button" onClick={findNearestRoad} disabled={findingRoad || !ready}>
-              {findingRoad ? t("Searching…") : t("Find nearest road")}
-            </button>
           </div>
         )}
       </div>
@@ -484,7 +341,6 @@ export default function StreetView(props: Props) {
           </div>
         </div>
       </div>
-      {roadStatus && <div className="sv-road-status" role="status">{roadStatus}</div>}
     </div>
   );
 }

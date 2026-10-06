@@ -295,6 +295,7 @@ input.player-name-input:focus {
   display: flex;
   align-items: center;
   gap: 10px;
+  pointer-events: none;
 }
 
 .overlay-bar {
@@ -312,6 +313,15 @@ input.player-name-input:focus {
   padding: 12px 20px;
   box-shadow: var(--shadow-main);
   max-width: calc(100% - 32px);
+  pointer-events: none;
+}
+
+.overlay-bar button,
+.overlay-bar a,
+.overlay-bar input,
+.overlay-bar select,
+.overlay-bar textarea {
+  pointer-events: auto;
 }
 
 button {
@@ -530,6 +540,7 @@ button.stepper-btn {
   background: rgba(9, 13, 22, 0.86);
   box-shadow: var(--shadow-main);
   transform: translateX(-50%);
+  pointer-events: none;
 }
 
 .sv-compass-dial {
@@ -577,6 +588,7 @@ button.stepper-btn {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
   cursor: pointer;
   transform-origin: center;
+  pointer-events: none;
 }
 
 .sv-road-arrow:hover {
@@ -663,26 +675,14 @@ button.stepper-btn {
   display: flex;
   align-items: center;
   gap: 6px;
+  pointer-events: auto;
 }
 
 .sv-navigation button {
   padding: 7px 10px;
   font-size: 12px;
   white-space: nowrap;
-}
-
-.sv-road-status {
-  position: absolute;
-  top: 106px;
-  left: 50%;
-  z-index: 16;
-  max-width: calc(100% - 24px);
-  padding: 8px 12px;
-  border-radius: 8px;
-  background: rgba(9, 13, 22, 0.92);
-  color: #fecaca;
-  font-size: 13px;
-  transform: translateX(-50%);
+  pointer-events: auto;
 }
 
 .round-play {
@@ -698,6 +698,10 @@ button.stepper-btn {
   position: absolute;
   inset: 0;
   background: #000;
+}
+
+.street-view-canvas {
+  pointer-events: auto;
 }
 
 .round-streetview > .overlay-top {
@@ -718,6 +722,7 @@ button.stepper-btn {
   background: rgba(17, 24, 39, 0.92);
   box-shadow: var(--shadow-main);
   font-weight: 700;
+  pointer-events: none;
 }
 
 .round-hud .timer-badge {
@@ -746,6 +751,7 @@ button.stepper-btn {
   transform: scale(1);
   transform-origin: bottom right;
   transition: width 180ms ease, height 180ms ease, box-shadow 180ms ease;
+  pointer-events: auto;
 }
 
 .floating-map:hover {
@@ -815,6 +821,7 @@ button.stepper-btn {
   touch-action: none;
   cursor: grab;
   user-select: none;
+  pointer-events: auto;
 }
 
 .floating-map-header:active {
@@ -830,6 +837,7 @@ button.stepper-btn {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  pointer-events: auto;
 }
 
 .floating-map-content > * {
@@ -886,6 +894,7 @@ button.stepper-btn {
   background: rgba(17, 24, 39, 0.93);
   box-shadow: var(--shadow-main);
   color: #fff;
+  pointer-events: none;
 }
 
 .watch-target-heading > span {
@@ -1074,6 +1083,7 @@ button.stepper-btn {
   border-radius: var(--radius-sm);
   background: rgba(17, 24, 39, 0.9);
   box-shadow: var(--shadow-main);
+  pointer-events: none;
 }
 
 .roster-head {
