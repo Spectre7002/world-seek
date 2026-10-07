@@ -29,7 +29,7 @@ const COMPASS_POINTS = [
 ];
 
 const ARROW_TELEPORT_DISTANCE_METERS = 40;
-const ARROW_TELEPORT_RADIUS_METERS = 30;
+const ARROW_TELEPORT_RADIUS_METERS = 1;
 
 interface Props {
   mode: "position" | "pano";
@@ -58,7 +58,9 @@ export default function StreetView(props: Props) {
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const prefetchRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<google.maps.StreetViewPanorama | null>(null);
+  const prefetchPanoRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const onPanoRef = useRef(onPano);
   onPanoRef.current = onPano;
   const onViewRef = useRef(onView);
@@ -76,6 +78,8 @@ export default function StreetView(props: Props) {
   const linksByPanoRef = useRef(new Map<string, google.maps.StreetViewLink[]>());
   const skippedHistoryPanoRef = useRef<string | null>(null);
   const programmaticPanosRef = useRef(new Set<string>());
+  const teleportingRef = useRef(false);
+  const teleportRequestRef = useRef(0);
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
   const [panoHistory, setPanoHistory] = useState<string[]>([]);
@@ -107,7 +111,7 @@ export default function StreetView(props: Props) {
       let clearListeners: (() => void) | null = null;
 
       loadGoogleMaps().then(function (google) {
-        if (cancelled || !ref.current || panoRef.current) return;
+        if (cancelled || !ref.current || !prefetchRef.current || panoRef.current) return;
 
         const pano = new google.maps.StreetViewPanorama(ref.current, {
           visible: true,
@@ -123,8 +127,23 @@ export default function StreetView(props: Props) {
           scrollwheel: interactive,
           disableDefaultUI: !interactive,
         });
+        const prefetchPano = new google.maps.StreetViewPanorama(prefetchRef.current, {
+          visible: true,
+          addressControl: false,
+          showRoadLabels: false,
+          fullscreenControl: false,
+          motionTracking: false,
+          motionTrackingControl: false,
+          panControl: false,
+          linksControl: false,
+          clickToGo: false,
+          zoomControl: false,
+          scrollwheel: false,
+          disableDefaultUI: true,
+        });
         clearListeners = function () {
           google.maps.event.clearInstanceListeners(pano);
+          google.maps.event.clearInstanceListeners(prefetchPano);
         };
 
         pano.addListener("position_changed", function () {
@@ -156,6 +175,9 @@ export default function StreetView(props: Props) {
               (previousPanoId && positionsByPanoRef.current.get(previousPanoId)) ||
               lastPositionRef.current;
             const programmatic = programmaticPanosRef.current.delete(id);
+            if (teleportingRef.current && programmatic) {
+              teleportingRef.current = false;
+            }
             const previousLinks =
               (previousPanoId && linksByPanoRef.current.get(previousPanoId)) ||
               linksRef.current;
@@ -189,6 +211,7 @@ export default function StreetView(props: Props) {
           linksRef.current = links;
           const currentPano = pano.getPano();
           if (currentPano) linksByPanoRef.current.set(currentPano, links);
+          prefetchNextPano(prefetchPano, links, pano.getPov().heading);
         });
 
         pano.addListener("pov_changed", function () {
@@ -202,6 +225,7 @@ export default function StreetView(props: Props) {
         });
 
         panoRef.current = pano;
+        prefetchPanoRef.current = prefetchPano;
         setReady(true);
       });
 
@@ -227,6 +251,9 @@ export default function StreetView(props: Props) {
       linksByPanoRef.current.clear();
       skippedHistoryPanoRef.current = null;
       programmaticPanosRef.current.clear();
+      teleportingRef.current = false;
+      teleportRequestRef.current += 1;
+      prefetchPanoRef.current = null;
       setPanoHistory([]);
     },
     [mode, position?.lat, position?.lng, panoId]
@@ -338,6 +365,9 @@ export default function StreetView(props: Props) {
     origin: google.maps.LatLng,
     heading: number,
   ) {
+    teleportingRef.current = true;
+    const requestId = ++teleportRequestRef.current;
+
     const targetLatLng = google.maps.geometry.spherical.computeOffset(
       origin,
       ARROW_TELEPORT_DISTANCE_METERS,
@@ -347,19 +377,18 @@ export default function StreetView(props: Props) {
     const currentPov = pano.getPov();
     const currentZoom = pano.getZoom();
 
-    service.getPanorama(
-      {
-        location: targetLatLng,
-        radius: ARROW_TELEPORT_RADIUS_METERS,
-        source: google.maps.StreetViewSource.OUTDOOR,
-      },
-      function (data, status) {
+    function applyTargetPano(
+      data: google.maps.StreetViewPanoramaData | null,
+      status: google.maps.StreetViewStatusString,
+    ) {
+        if (requestId !== teleportRequestRef.current) return;
         if (
           status !== google.maps.StreetViewStatus.OK ||
           !data ||
           !data.location ||
           !data.location.pano
         ) {
+          teleportingRef.current = false;
           return;
         }
 
@@ -371,8 +400,49 @@ export default function StreetView(props: Props) {
           pitch: currentPov.pitch,
         });
         pano.setZoom(currentZoom);
+    }
+
+    service.getPanorama(
+      {
+        location: targetLatLng,
+        radius: ARROW_TELEPORT_RADIUS_METERS,
+        source: google.maps.StreetViewSource.OUTDOOR,
+      },
+      function (data, status) {
+        if (status === google.maps.StreetViewStatus.ZERO_RESULTS) {
+          service.getPanorama(
+            {
+              location: targetLatLng,
+              radius: 5,
+              source: google.maps.StreetViewSource.OUTDOOR,
+            },
+            applyTargetPano,
+          );
+          return;
+        }
+        applyTargetPano(data, status);
       },
     );
+  }
+
+  function prefetchNextPano(
+    prefetchPano: google.maps.StreetViewPanorama,
+    links: google.maps.StreetViewLink[],
+    viewHeading: number,
+  ) {
+    let nextLink: google.maps.StreetViewLink | null = null;
+    let closestDelta = Infinity;
+    for (const link of links) {
+      if (link.pano === null || link.heading === null) continue;
+      const delta = Math.abs((((link.heading - viewHeading + 540) % 360) - 180));
+      if (delta < closestDelta) {
+        closestDelta = delta;
+        nextLink = link;
+      }
+    }
+    if (nextLink?.pano && prefetchPano.getPano() !== nextLink.pano) {
+      prefetchPano.setPano(nextLink.pano);
+    }
   }
 
   function returnToStart() {
@@ -410,6 +480,19 @@ export default function StreetView(props: Props) {
         ref={ref}
         className="street-view-canvas"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+      />
+      <div
+        ref={prefetchRef}
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          left: "-10px",
+          top: "-10px",
+          opacity: 0,
+          pointerEvents: "none",
+        }}
       />
       <div className="sv-heading-band" aria-hidden="true">
         {COMPASS_POINTS.map(function (point) {
