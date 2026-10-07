@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { dirname } from "node:path";
 
-// Monthly spend cap for the Google Maps APIs.
+// Approximate monthly admission budget for Google Maps usage.
 //
 // The API key here serves exactly one site, so the bill is entirely a function
 // of how much the game is played. Google's own quota page can't cap this on its
@@ -16,8 +16,8 @@ import { dirname } from "node:path";
 // shows up. Charging per connected player self-balances across group sizes.
 
 // --- what a game costs, in billable Google events --------------------------
-// Per player, per full multiplayer game, from where the client actually
-// instantiates map/panorama objects (MapPicker, StreetView):
+// The configured multiplayer allowance is deliberately conservative relative
+// to the estimated client map/panorama usage described below.
 //   hiding phase          1 map  + ~6 panoramas (the click, then walking)
 //   9 rounds as hunter   27 maps + 9 panoramas (guess map -> watch map ->
 //                        results map, each a fresh mount, + one panorama)
@@ -40,12 +40,19 @@ const USD_PER_MAP_LOAD = 0.007;
 const USD_PER_PANO_LOAD = 0.014;
 
 /**
- * Paid budget on top of the free tiers, in USD. Split evenly between the two
- * SKUs, which is how the spend actually lands (a player-game costs $0.21 of
- * maps and $0.21 of panoramas). At the $20 default both ceilings work out to
- * ~380 player-games/month — 38 ten-person games, or 190 two-player games.
+ * Paid budget on top of the configured base allowances, in USD, split evenly
+ * between the map and panorama ceilings. With the current accounting units,
+ * the $20 default permits about 76 multiplayer player-games per month.
  */
-const BUDGET_USD = 0
+const configuredBudget = process.env.MAPS_BUDGET_USD;
+const BUDGET_USD =
+  configuredBudget === undefined || configuredBudget.trim() === ""
+    ? 20
+    : Number(configuredBudget);
+
+if (!Number.isFinite(BUDGET_USD) || BUDGET_USD < 0) {
+  throw new Error("MAPS_BUDGET_USD must be a finite, non-negative number");
+}
 
 const MAP_CEILING = FREE_MAP_LOADS + Math.floor(BUDGET_USD / 2 / USD_PER_MAP_LOAD);
 const PANO_CEILING = FREE_PANO_LOADS + Math.floor(BUDGET_USD / 2 / USD_PER_PANO_LOAD);

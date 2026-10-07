@@ -16,12 +16,7 @@ function nextResetLabel(): string {
   });
 }
 
-/**
- * Shown when the month's Google Maps budget is spent. Every map and Street View
- * panorama in this game is a metered Google API call paid for out of one
- * person's pocket, so the site closes rather than running up a bill — and points
- * people at the source, since self-hosting with your own key has no such cap.
- */
+/** Shown when the local monthly Google Maps usage allowance is exhausted. */
 export default function BudgetClosed({ inGame = false }: { inGame?: boolean }) {
   const { t } = useLanguage();
   return (
@@ -45,7 +40,7 @@ export default function BudgetClosed({ inGame = false }: { inGame?: boolean }) {
         <div className="card stack">
           <span className="eyebrow">{t("What happened")}</span>
           <p className="muted" style={{ margin: 0, fontSize: 23 }}>
-            {t("Every map and Street View panorama in this game is a paid Google API call, funded out of pocket. There's a monthly cap so it can't run away — and it's been reached. The meter resets on the 1st.")}
+            {t("The server uses an estimated monthly Google Maps usage allowance. This is separate from your actual Google Cloud bill. The allowance resets on the 1st.")}
           </p>
         </div>
 

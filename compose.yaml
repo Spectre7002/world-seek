@@ -6,17 +6,22 @@ services:
         # NEXT_PUBLIC_* is inlined into the client bundle at BUILD time, so the
         # Maps key has to be a build arg — a runtime env var arrives too late.
         NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}
+        NEXT_PUBLIC_TURN_URL: ${NEXT_PUBLIC_TURN_URL:-}
+        NEXT_PUBLIC_TURN_USERNAME: ${NEXT_PUBLIC_TURN_USERNAME:-}
+        NEXT_PUBLIC_TURN_CREDENTIAL: ${NEXT_PUBLIC_TURN_CREDENTIAL:-}
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     environment:
+      PORT: ${PORT:-3000}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:3000}
-      # Monthly Google Maps spend cap. See "Capping your Maps bill" in the README.
+      # Approximate monthly admission budget; not a Google Cloud billing cap.
+      # See the matching usage-budget section in the README.
       MAPS_BUDGET_USD: ${MAPS_BUDGET_USD:-20}
     volumes:
-      # The Maps budget counter. This named volume is the whole reason the cap
-      # survives a redeploy — without it the counter starts at zero every deploy
-      # and stops capping anything. The [budget] startup log reports Google
-      # Cloud API usage; GET /api/budget reports the local admission counter.
+      # The Maps usage counter. This named volume is the whole reason the local
+      # admission allowance survives a redeploy — without it the counter starts at zero
+      # and the allowance no longer reflects earlier games. The [budget] startup log
+      # reports Google Cloud API usage; GET /api/budget reports the local counter.
       - world-seek-data:/data
     restart: unless-stopped
 

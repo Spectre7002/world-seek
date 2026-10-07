@@ -6,11 +6,10 @@ player is hiding using Google Street View. 🏆 Points are awarded by distance �
 
 ## Project history
 
-The initial game mockup was created by [Ivan Villa](https://ivanvilla.com). The current
-maintainer implemented and further developed most of the game; this version is maintained in
-the [Spectre7002/world-seek](https://github.com/Spectre7002/world-seek) repository.
+The initial game mockup was created by [Ivan Villa](https://ivanvilla.com). This repository
+contains the current maintained implementation of the game.
 
-▶️ **[Watch here for game walkthough](https://youtu.be/eQZJzsQGTDQ)**
+▶️ **[Watch the game walkthrough](https://youtu.be/eQZJzsQGTDQ)**
 
 
 ## 🧰 Stack
@@ -23,12 +22,12 @@ the [Spectre7002/world-seek](https://github.com/Spectre7002/world-seek) reposito
 - 💬 **Text chat** over Socket.IO, scoped per game
 - 🎙️ **Live voice chat** over peer-to-peer **WebRTC** (mesh of direct connections between
   players) — always-on, push-to-talk, or mute, with a mic device picker and a speaking
-  indicator. Socket.IO only carries signaling (offers/answers/ICE candidates); audio never
-  touches the server
+  indicator. Socket.IO carries signaling (offers/answers/ICE candidates); audio does not pass
+  through the World Seek app server, though a TURN relay may carry it
 
 ## ✅ Prerequisites
 
-- 🟢 Node.js 18+ (this repo was verified on Node 24)
+- 🟢 Node.js 18.17 or newer (this repo was verified on Node 24)
 - 🔑 A **Google Maps JavaScript API key** with **Maps JavaScript API** and **Street View**
   enabled and **billing on** (in the [Google Cloud console](https://console.cloud.google.com/)).
 
@@ -37,7 +36,7 @@ the [Spectre7002/world-seek](https://github.com/Spectre7002/world-seek) reposito
 **1. Install dependencies and create your env file**
 
 ```bash
-npm install
+npm ci
 cp .env.example .env.local
 # edit .env.local and set NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-key
 ```
@@ -106,16 +105,16 @@ npm start
 
 ## 🐳 Deploy with Docker
 
-The repo ships a standard multi-stage `Dockerfile` and `.dockerignore` — no platform-specific
-config. It runs on anything that builds a Dockerfile: a bare VPS, `docker compose`, Kubernetes,
-or a PaaS (Coolify, Render, Railway, Fly, Cloud Run, …).
+The repo ships a multi-stage `Dockerfile` and `.dockerignore`. It can run anywhere that can
+build a Dockerfile, including a VPS, Docker Compose, Kubernetes, or a Docker-based PaaS.
 
 > ### ⚠️ The one thing you can't get wrong: the Maps key is a **build arg**
 >
 > `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` is inlined into the **browser bundle** during `next build`,
 > so it must be passed at **build time** (`--build-arg`), not just as a runtime env var. Pass it
-> only at runtime and **Street View silently fails** with no obvious error. The other variables
-> (`ALLOWED_ORIGIN`, `PORT`) are runtime-only.
+> only at runtime and Maps/Street View will not initialize correctly. The TURN variables are
+> also `NEXT_PUBLIC_*` settings and must be passed at build time. `ALLOWED_ORIGIN`, `PORT`,
+> `MAPS_BUDGET_USD`, and `BUDGET_STATE_PATH` are runtime settings.
 
 ### Build & run directly
 
@@ -123,89 +122,99 @@ or a PaaS (Coolify, Render, Railway, Fly, Cloud Run, …).
 # Build — the Maps key MUST be a --build-arg (baked into the client bundle)
 docker build \
   --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-key \
+  --build-arg NEXT_PUBLIC_TURN_URL=turn:turn.yourdomain.com:3478 \
+  --build-arg NEXT_PUBLIC_TURN_USERNAME=your-username \
+  --build-arg NEXT_PUBLIC_TURN_CREDENTIAL=client-safe-credential \
   -t world-seek .
 
-# Run — ALLOWED_ORIGIN and PORT are runtime env vars
+# Run — keep /data on a persistent volume to preserve the budget counter.
 docker run -p 3000:3000 \
   -e ALLOWED_ORIGIN=https://worldseek.yourdomain.com \
+  -e MAPS_BUDGET_USD=20 \
+  -v world-seek-data:/data \
   world-seek
 ```
 
-### Or with `docker compose`
+The TURN build args are optional; omit them to use the public fallback TURN service.
+
+### Or with Docker Compose
 
 A [`compose.yaml`](compose.yaml) is included. It already declares the named volume the
-[Maps budget cap](#-capping-your-maps-bill) needs, so nothing extra to wire up:
+[Maps usage counter](#-approximate-google-maps-usage-budget) needs. Copy `.env.example` to `.env.local`,
+set the Maps key, and run:
 
-```bash
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-key \
-ALLOWED_ORIGIN=https://worldseek.yourdomain.com \
-docker compose up --build
+```sh
+docker compose --env-file .env.local up --build
 ```
+
+Compose passes the Maps and optional TURN settings as build args, and the budget/origin/port
+settings at runtime. The bundled compose file publishes port 3000 by default; set `PORT` in
+`.env.local` to use a different host and container port.
 
 ### Environment variables
 
 | Variable | When | Required | Purpose |
 |---|---|---|---|
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | **build** | ✅ | Maps + Street View; inlined into the client bundle |
-| `ALLOWED_ORIGIN` | runtime | prod | Your `https://…` origin; locks Socket.IO CORS |
+| `ALLOWED_ORIGIN` | runtime | **production** | Your public `https://…` origin; restricts Socket.IO CORS. If unset, Socket.IO accepts requests from any origin. |
 | `PORT` | runtime | — | Listen port (defaults to `3000`) |
 | `NEXT_PUBLIC_TURN_URL` | **build** | — | Your own TURN server URL (e.g. `turn:turn.yourdomain.com:3478`); see [Voice chat & TURN](#-voice-chat--turn) below |
 | `NEXT_PUBLIC_TURN_USERNAME` | **build** | — | TURN credential username, paired with `NEXT_PUBLIC_TURN_URL` |
-| `NEXT_PUBLIC_TURN_CREDENTIAL` | **build** | — | TURN credential password, paired with `NEXT_PUBLIC_TURN_URL` |
-| `MAPS_BUDGET_USD` | runtime | — | Monthly Google Maps spend cap in USD (defaults to `20`); see [Capping your Maps bill](#-capping-your-maps-bill) |
+| `NEXT_PUBLIC_TURN_CREDENTIAL` | **build** | — | TURN credential passed to clients; do not use a secret that must remain private |
+| `MAPS_BUDGET_USD` | runtime | — | Approximate monthly admission budget in USD (defaults to `20`; `0` allows only the configured base allowance); see [Approximate Google Maps usage budget](#-approximate-google-maps-usage-budget) |
 | `BUDGET_STATE_PATH` | runtime | — | Where the budget counter is stored (defaults to `/data/budget.json`) |
 
-### 💸 Capping your Maps bill
+### 💸 Approximate Google Maps usage budget
 
-Every map and Street View panorama the game draws is a **billed Google API call**, so the cost
-scales with how much people play. Roughly:
+Google's actual charges depend on the APIs/SKUs used, the project's billing terms, and current
+Google Maps Platform pricing. The server-side meter is only an **approximate admission guard**;
+it is not a Google Cloud billing cap, does not measure actual API requests, and cannot guarantee
+that your bill stays under a specific amount. Check your Google Cloud billing reports and set
+budgets/alerts and API quotas there as well.
 
-| | Dynamic Maps | Dynamic Street View | Cost |
-|---|---|---|---|
-| One player, one full game | ~30 loads | ~15 panoramas | **~$0.42** |
-| A 10-person game, all rounds | ~300 | ~150 | **~$4.20** |
-| One solo session (5 rounds) | ~10 | ~5 | **~$0.14** |
+When a game starts, the server charges a conservative allowance against a monthly counter:
 
-Google gives you 10,000 free map loads and 5,000 free panoramas a month — about **330
-player-games** — and charges $7 and $14 per 1,000 after that.
+- Multiplayer: 150 map-load units and 75 Street View panorama units per connected player.
+- Solo: 2 map-load units and 1 panorama unit per round.
 
-So the server meters itself. Each game start charges the connected player count against a
-monthly budget (`MAPS_BUDGET_USD`, default `$20` ≈ 380 player-games — 38 ten-person games, or
-190 two-player ones, or any mix). When it runs out the site closes with a page explaining why
-and pointing at this repo, and the counter resets on the 1st. `GET /api/budget` reports where
-you are:
+These are the server's configured accounting units, not a promise that each player actually
+generates exactly that many billable requests. The meter uses the pricing assumptions in
+`src/server-logic/budget.ts` to split `MAPS_BUDGET_USD` evenly between its map and panorama
+ceilings. It currently assumes 10,000 map units and 5,000 panorama units before paid usage;
+Google's free allowances and prices can change, so verify current terms independently. The
+default budget is `$20`; set it to `0` to limit admission to those configured base allowances.
+
+If the counter cannot afford another game, the home page shows a closed-budget message and
+the server refuses new rooms or game starts. The counter rolls over on the first day of each
+UTC month. `GET /api/budget` returns the local counter, its ceilings, the configured budget,
+and the estimated number of multiplayer player-games remaining:
 
 ```bash
 curl https://worldseek.yourdomain.com/api/budget
-# {"period":"2026-07","mapLoads":4230,"panoLoads":2115,...,"playerGamesLeft":239}
 ```
 
-> **The local admission counter needs a persistent volume**, or it resets on every redeploy —
-> i.e. the cap stops working exactly when you're relying on it. With `docker compose` this is
-> already handled.
-> Deploying straight from the Dockerfile (including most PaaS setups), mount a volume at `/data`
-> yourself — the image creates the directory owned by the runtime user, but only your host can
-> make it outlive the container.
+> **The local admission counter needs persistent storage**, or it resets on every redeploy.
+> The included Docker Compose setup mounts a named volume at `/data`. For a direct Docker
+> deployment, mount a persistent volume at `/data` yourself. The image creates that directory
+> and grants its unprivileged runtime user write access, but the volume must be managed by the
+> host/platform and must not be removed during redeploys.
 >
-> On every boot the server queries Google Cloud Monitoring for the current month's actual
-> request counts and prints the free-tier usage:
+> On startup, the server also tries to query actual request counts from Google Cloud Monitoring
+> for the Google Cloud project `worldseek` and prints them:
 >
 > ```
 > [budget] 2026-10: 4230/10000 map loads, 2115/5000 panoramas — 38 player-games left
 > ```
 >
-> The startup query requires `gcloud auth print-access-token` to work in the server environment.
-> If gcloud or the network is unavailable, the server prints a warning and continues. The local
-> admission counter is still exposed by `GET /api/budget`; the startup metrics don't reflect its
-> persistence status.
+> This informational query requires the `gcloud` CLI, credentials with access to Cloud
+> Monitoring, and the Monitoring API enabled for that project. The Docker image does not include
+> `gcloud`, so it logs a warning and continues unless you add/configure it. If the query fails,
+> game admission still uses the local counter. These Cloud Monitoring results do not update or
+> validate that counter.
 
-The per-game numbers above are estimates — how much players wander in Street View moves them,
-and abandoned games get charged in full at start. Expect ±30%. Compare `/api/budget` against
-the Cloud console's Dynamic Maps / Dynamic Street View metrics after a few weeks and tune the
-constants at the top of `src/server-logic/budget.ts`. It's also worth setting a **`Map loads per
-day` quota** (~380) on the Maps JavaScript API in Google Cloud as a hard backstop underneath
-this — note that Google exposes no equivalent quota for Street View panoramas, which is half
-the reason this app-level meter exists.
+The counter is charged in full when a game starts, including games that are abandoned. Review
+Google Cloud's actual usage and billing reports regularly; the usage query is informational and
+the local counter is not a substitute for a billing budget or quota.
 
 ### 🎙️ Voice chat & TURN
 
@@ -216,8 +225,8 @@ audio. If you leave `NEXT_PUBLIC_TURN_*` unset, World Seek falls back to the fre
 fine for trying things out but is shared, rate-limited, and not something to depend on for a
 real deployment. For anything beyond casual local play, run your own TURN server (e.g.
 [coturn](https://github.com/coturn/coturn)) and set the three `NEXT_PUBLIC_TURN_*` build args
-above. Like the Maps key, these are `NEXT_PUBLIC_` and inlined into the client bundle, so set
-them at **build time**.
+above. These values are inlined into the client bundle and visible to every player; use
+client-safe or short-lived TURN credentials, not a private server password.
 
 > ### 🚦 Keep it to one instance
 > All your games live in the server's memory, like notes on a whiteboard — there's no separate
@@ -246,14 +255,17 @@ you. Keep it to a single instance.
 
 ## 🎮 How to play
 
-1. 🏠 Open `http://localhost:3000`, enter a name, and **Start game**. You're the host (GM).
+1. 🏠 Open `http://localhost:3000`, enter a name, and choose **Start game** to create a room.
+   You're the host (GM).
 2. 🔗 Share the URL (e.g. `http://localhost:3000/game/abr-tyr`). Each person opens it and picks
    a name; they appear in your lobby live.
-3. 🎚️ As host, pick a difficulty and **Start game** (needs ≥2 players).
-4. 🙈 **Hiding:** everyone drops a pin and confirms with **Hide here** (only spots with Street
-   View coverage are allowed).
-5. 🔍 **Finding:** one hider at a time — everyone else sees that hider's Street View and drops a
-   guess. The hider sits out their own round.
+3. 🎚️ As host, configure the number of cycles and optional phase time limits, then start.
+   A solo game can start with one player; multiplayer needs at least two.
+4. 🙈 **Hiding (multiplayer):** everyone drops a pin and confirms with **Hide here** (only spots
+   with Street View coverage are allowed; the host can optionally allow unofficial coverage).
+   Solo games skip this phase and use game-selected locations.
+5. 🔍 **Finding:** in multiplayer, one hider is the target while the other players guess; the
+   target sits out their own round. In solo mode, the player guesses the game-selected location.
 6. 🎊 **Results:** the real spot, all guesses, and points are revealed. Host advances.
 7. 🥇 After the last round, final scores + winner. Host can return everyone to the lobby.
 
@@ -262,9 +274,10 @@ you. Keep it to a single instance.
 - The host toggles **text chat** and **voice chat** on or off per game when creating it.
 - Text chat is a shared room thread (open it from the in-game chat panel) with per-game
   history sent to anyone who (re)joins.
-- Voice chat connects every player directly to every other player (mesh WebRTC) — no audio
-  passes through the server. Pick **always-on**, **push-to-talk** (hold Space), or **mute**,
-  and choose your mic from the device picker in voice settings.
+- Voice chat connects every player directly to every other player (mesh WebRTC). Audio does
+  not pass through the World Seek app server, though it may be relayed through a TURN server.
+  Pick **always-on**, **push-to-talk** (hold Space), or **mute**, and choose your mic from the
+  device picker in voice settings.
 
 ### 🔄 Reconnection & join-locking
 
@@ -285,6 +298,9 @@ src/components/         MapPicker, StreetView, the phase screens, TextChat, Voic
                         VoiceSettings
 src/app/                home page + /game/[code] room shell
 scripts/smoke.mjs       headless end-to-end test of the full game loop (server must be running)
+scripts/load.mjs        Socket.IO load harness for concurrent rooms (server must be running)
+scripts/multiplayer-capacity.mjs
+                        multiplayer capacity benchmark
 ```
 
 ## 🧪 Testing the game logic without a browser
@@ -300,11 +316,12 @@ finish → reconnect, asserting the server's behavior (no Maps key needed).
 
 ## ⚠️ Known limitations (MVP)
 
-- 💾 Room state is in-memory — a server restart drops live games.
+- 💾 Active room/game state is in-memory — a server restart drops live games. The Maps admission
+  counter is separate and can persist in the `/data` volume.
 - 🛡️ Anti-cheat is panoId-based (the hider's coords aren't sent to guessers until the reveal),
   which is friendly-game grade, not bulletproof.
-- ⏱️ No per-phase timers — phases advance when everyone has acted, with a host "skip the wait"
-  override.
+- ⏱️ Hiding and finding timers are optional and default to unlimited. Without a timer, phases
+  advance when everyone has acted; the host can also advance from results.
 
 ## 📜 License
 

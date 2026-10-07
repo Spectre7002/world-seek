@@ -14,6 +14,12 @@ COPY . .
 # (most PaaS platforms expose this as a "build-time" / "build" variable).
 ARG NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 ENV NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+ARG NEXT_PUBLIC_TURN_URL
+ARG NEXT_PUBLIC_TURN_USERNAME
+ARG NEXT_PUBLIC_TURN_CREDENTIAL
+ENV NEXT_PUBLIC_TURN_URL=$NEXT_PUBLIC_TURN_URL
+ENV NEXT_PUBLIC_TURN_USERNAME=$NEXT_PUBLIC_TURN_USERNAME
+ENV NEXT_PUBLIC_TURN_CREDENTIAL=$NEXT_PUBLIC_TURN_CREDENTIAL
 RUN npm run build
 
 # ---- runner ----
@@ -27,8 +33,8 @@ RUN useradd -m -u 1001 appuser
 #
 # Deliberately NOT a `VOLUME` instruction: that creates an *anonymous* volume,
 # which a redeploy replaces with an empty one — persistence that looks real and
-# isn't. Mount a named volume here instead (see compose.yaml), and check the
-# Keep the volume mounted to preserve the local game-admission counter across redeploys.
+# isn't. Mount a named volume here instead (see compose.yaml) and keep it mounted
+# across redeploys to preserve the local game-admission counter.
 RUN mkdir -p /data && chown appuser:appuser /data
 # Full node_modules kept on purpose: `npm start` -> `tsx server/index.ts` needs tsx,
 # cross-env, next and the TS source (server/, src/) at runtime.
