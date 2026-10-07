@@ -1,6 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { dirname, join } from "node:path";
 
 // Approximate monthly admission budget for Google Maps usage.
 //
@@ -245,6 +245,53 @@ function utcTimestamp(date: Date): string {
   return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+function findGcloudCommand(): string {
+  if (process.platform !== "win32") return "gcloud";
+
+  const candidates = [
+    join(process.env.ProgramFiles || "", "Google", "Cloud SDK", "google-cloud-sdk", "bin", "gcloud.cmd"),
+    join(
+      process.env["ProgramFiles(x86)"] || "",
+      "Google",
+      "Cloud SDK",
+      "google-cloud-sdk",
+      "bin",
+      "gcloud.cmd",
+    ),
+    join(
+      process.env.LOCALAPPDATA || "",
+      "Google",
+      "Cloud SDK",
+      "google-cloud-sdk",
+      "bin",
+      "gcloud.cmd",
+    ),
+    ...(process.env.Path || process.env.PATH || "")
+      .split(";")
+      .filter(Boolean)
+      .map((directory) => join(directory, "gcloud.cmd")),
+  ];
+
+  return (
+    candidates.find((candidate) => existsSync(candidate)) ||
+    "gcloud.cmd"
+  );
+}
+
+function printGcloudAccessToken(): string {
+  const command = findGcloudCommand();
+  if (process.platform === "win32") {
+    return execFileSync(
+      process.env.ComSpec || "cmd.exe",
+      ["/d", "/c", command, "auth", "print-access-token"],
+      { encoding: "utf8" },
+    ).trim();
+  }
+  return execFileSync(command, ["auth", "print-access-token"], {
+    encoding: "utf8",
+  }).trim();
+}
+
 async function readMonthlyApiUsage(
   accessToken: string,
   startTime: string,
@@ -307,9 +354,7 @@ export async function logBudgetAtBoot(): Promise<void> {
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
     );
     const endTime = utcTimestamp(now);
-    const accessToken = execSync("gcloud auth print-access-token", {
-      encoding: "utf8",
-    }).trim();
+    const accessToken = printGcloudAccessToken();
     if (!accessToken) {
       throw new Error("gcloud returned an empty access token");
     }
@@ -333,9 +378,20 @@ export async function logBudgetAtBoot(): Promise<void> {
         `${panoLoads}/${PANORAMA_REQUEST_LIMIT} panoramas — ${playerGamesLeft} player-games left`,
     );
   } catch (err) {
+    if (
+      (err as NodeJS.ErrnoException)?.code === "ENOENT" ||
+      (err instanceof Error &&
+        err.message.includes("gcloud CLI was not found in PATH or standard Windows"))
+    ) {
+      console.info(
+        "[budget] gcloud CLI was not found; skipping Google Cloud usage query",
+      );
+      return;
+    }
+
+    const message = err instanceof Error ? err.message : String(err);
     console.warn(
-      "[budget] unable to fetch Google Cloud usage; server will continue without it",
-      err,
+      `[budget] unable to fetch Google Cloud usage; server will continue without it: ${message}`,
     );
   }
 }

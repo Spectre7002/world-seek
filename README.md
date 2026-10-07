@@ -79,22 +79,24 @@ both Next.js and the Socket.IO endpoint on the same port.
 ### Windows launchers
 
 After completing Setup above, you can start the game by double-clicking `run_game.bat`.
-It starts the server locally at `http://localhost:3000` and does not require Ngrok.
+It starts the server locally at `http://localhost:3000` and also starts an Ngrok tunnel.
+The shared launcher never contains a contributor's personal domain.
 
 To let people outside your local network join, install and configure [Ngrok](https://ngrok.com/)
-with your own account. Keep the shared `run_game.bat` unchanged; create a private copy named
-`run_game.local.bat` and add this line before the line that starts the World Seek server:
+with your own account. For a reserved domain, set `NGROK_DOMAIN` in the terminal before starting
+the launcher:
 
 ```bat
-start "Ngrok Tunnel" cmd /k "ngrok http --url=YOUR_NGROK_DOMAIN 3000"
+set NGROK_DOMAIN=YOUR_NGROK_DOMAIN
+run_game.bat
 ```
 
-Replace `YOUR_NGROK_DOMAIN` with the domain assigned to your Ngrok account. If you use a
-temporary Ngrok URL instead, use `ngrok http 3000` and share the URL Ngrok prints. The
-`run_game.local.bat` filename is gitignored, so your personal tunnel address will not be
-committed or pushed. Other contributors can make their own local copy with their own tunnel
-settings. For Maps to work for remote players, also allow your Ngrok HTTPS domain in the
-Google Maps API key's HTTP referrer restrictions in Google Cloud.
+Replace `YOUR_NGROK_DOMAIN` with the domain assigned to your Ngrok account. The launcher then
+opens that URL in Chrome. Without `NGROK_DOMAIN`, it starts a temporary Ngrok URL and prints the
+address in the Ngrok window; open that address manually. A personal `run_game.local.bat` can
+still be used for convenience, but it is gitignored so personal tunnel addresses are not
+committed or pushed. For Maps to work for remote players, also allow your Ngrok HTTPS domain in
+the Google Maps API key's HTTP referrer restrictions in Google Cloud.
 
 ## 🚀 Production (plain Node)
 
@@ -211,6 +213,34 @@ curl https://worldseek.yourdomain.com/api/budget
 > `gcloud`, so it logs a warning and continues unless you add/configure it. If the query fails,
 > game admission still uses the local counter. These Cloud Monitoring results do not update or
 > validate that counter.
+
+#### Installing and configuring `gcloud` (optional)
+
+The usage query is optional. On Windows, install the Google Cloud CLI from
+[the official installation guide](https://cloud.google.com/sdk/docs/install) or with
+`winget`:
+
+```powershell
+winget install Google.CloudSDK
+```
+
+Open a new terminal after installation, then sign in and select the project used by World Seek:
+
+```powershell
+gcloud init
+gcloud auth application-default login
+gcloud config set project worldseek
+gcloud services enable monitoring.googleapis.com
+gcloud auth print-access-token
+```
+
+The last command should print an access token. The account must have permission to read Cloud
+Monitoring metrics for the `worldseek` project (for example, the **Monitoring Viewer** role).
+After installing the CLI, close and reopen the terminal (and restart VS Code if the server is
+started from its integrated terminal) so the updated `PATH` is available. Then restart the World
+Seek server. If `gcloud` is not installed or
+authentication fails, the server continues to use the local budget counter and skips the
+informational Cloud Monitoring query.
 
 The counter is charged in full when a game starts, including games that are abandoned. Review
 Google Cloud's actual usage and billing reports regularly; the usage query is informational and
