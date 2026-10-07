@@ -130,7 +130,7 @@ docker build \
 # Run — keep /data on a persistent volume to preserve the budget counter.
 docker run -p 3000:3000 \
   -e ALLOWED_ORIGIN=https://worldseek.yourdomain.com \
-  -e MAPS_BUDGET_USD=20 \
+  -e MAPS_BUDGET_USD=0 \
   -v world-seek-data:/data \
   world-seek
 ```
@@ -161,7 +161,7 @@ settings at runtime. The bundled compose file publishes port 3000 by default; se
 | `NEXT_PUBLIC_TURN_URL` | **build** | — | Your own TURN server URL (e.g. `turn:turn.yourdomain.com:3478`); see [Voice chat & TURN](#-voice-chat--turn) below |
 | `NEXT_PUBLIC_TURN_USERNAME` | **build** | — | TURN credential username, paired with `NEXT_PUBLIC_TURN_URL` |
 | `NEXT_PUBLIC_TURN_CREDENTIAL` | **build** | — | TURN credential passed to clients; do not use a secret that must remain private |
-| `MAPS_BUDGET_USD` | runtime | — | Approximate monthly admission budget in USD (defaults to `20`; `0` allows only the configured base allowance); see [Approximate Google Maps usage budget](#-approximate-google-maps-usage-budget) |
+| `MAPS_BUDGET_USD` | runtime | — | Approximate monthly admission budget in USD (defaults to `0`, allowing only the configured base allowance); see [Approximate Google Maps usage budget](#-approximate-google-maps-usage-budget) |
 | `BUDGET_STATE_PATH` | runtime | — | Where the budget counter is stored (defaults to `/data/budget.json`) |
 
 ### 💸 Approximate Google Maps usage budget
@@ -182,7 +182,7 @@ generates exactly that many billable requests. The meter uses the pricing assump
 `src/server-logic/budget.ts` to split `MAPS_BUDGET_USD` evenly between its map and panorama
 ceilings. It currently assumes 10,000 map units and 5,000 panorama units before paid usage;
 Google's free allowances and prices can change, so verify current terms independently. The
-default budget is `$20`; set it to `0` to limit admission to those configured base allowances.
+default budget is `$0`, allowing admission only within those configured base allowances.
 
 If the counter cannot afford another game, the home page shows a closed-budget message and
 the server refuses new rooms or game starts. The counter rolls over on the first day of each

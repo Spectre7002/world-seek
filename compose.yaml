@@ -16,7 +16,7 @@ services:
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:3000}
       # Approximate monthly admission budget; not a Google Cloud billing cap.
       # See the matching usage-budget section in the README.
-      MAPS_BUDGET_USD: ${MAPS_BUDGET_USD:-20}
+      MAPS_BUDGET_USD: ${MAPS_BUDGET_USD:-0}
     volumes:
       # The Maps usage counter. This named volume is the whole reason the local
       # admission allowance survives a redeploy — without it the counter starts at zero

@@ -42,12 +42,12 @@ const USD_PER_PANO_LOAD = 0.014;
 /**
  * Paid budget on top of the configured base allowances, in USD, split evenly
  * between the map and panorama ceilings. With the current accounting units,
- * the $20 default permits about 76 multiplayer player-games per month.
+ * The $0 default permits games only within the configured base allowances.
  */
 const configuredBudget = process.env.MAPS_BUDGET_USD;
 const BUDGET_USD =
   configuredBudget === undefined || configuredBudget.trim() === ""
-    ? 20
+    ? 0
     : Number(configuredBudget);
 
 if (!Number.isFinite(BUDGET_USD) || BUDGET_USD < 0) {
