@@ -30,3 +30,10 @@ audit/
 /_*.mjs
 
 temp_reference/
+
+# IDE workspace state (machine-specific)
+.vs/
+*.lnk
+
+# Personal launcher may contain a private tunnel URL
+run_game.local.bat

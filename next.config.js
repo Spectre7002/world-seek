@@ -15,6 +15,7 @@ const nextConfig = {
   reactStrictMode: false,
   // Don't advertise the framework/version.
   poweredByHeader: false,
+  allowedDevOrigins: ["*.ngrok-free.dev"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

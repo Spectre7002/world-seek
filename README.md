@@ -4,6 +4,12 @@
 somewhere in the world (their hiding spot), then everyone takes turns guessing where each
 player is hiding using Google Street View. 🏆 Points are awarded by distance — closest wins!
 
+## Project history
+
+The initial game mockup was created by [Ivan Villa](https://ivanvilla.com). The current
+maintainer implemented and further developed most of the game; this version is maintained in
+the [Spectre7002/world-seek](https://github.com/Spectre7002/world-seek) repository.
+
 ▶️ **[Watch here for game walkthough](https://youtu.be/eQZJzsQGTDQ)**
 
 
@@ -70,6 +76,26 @@ npm run dev
 
 The `dev` script runs the **custom server** (`server/index.ts`) via `tsx watch`, which serves
 both Next.js and the Socket.IO endpoint on the same port.
+
+### Windows launchers
+
+After completing Setup above, you can start the game by double-clicking `run_game.bat`.
+It starts the server locally at `http://localhost:3000` and does not require Ngrok.
+
+To let people outside your local network join, install and configure [Ngrok](https://ngrok.com/)
+with your own account. Keep the shared `run_game.bat` unchanged; create a private copy named
+`run_game.local.bat` and add this line before the line that starts the World Seek server:
+
+```bat
+start "Ngrok Tunnel" cmd /k "ngrok http --url=YOUR_NGROK_DOMAIN 3000"
+```
+
+Replace `YOUR_NGROK_DOMAIN` with the domain assigned to your Ngrok account. If you use a
+temporary Ngrok URL instead, use `ngrok http 3000` and share the URL Ngrok prints. The
+`run_game.local.bat` filename is gitignored, so your personal tunnel address will not be
+committed or pushed. Other contributors can make their own local copy with their own tunnel
+settings. For Maps to work for remote players, also allow your Ngrok HTTPS domain in the
+Google Maps API key's HTTP referrer restrictions in Google Cloud.
 
 ## 🚀 Production (plain Node)
 

@@ -1,5 +1,4 @@
 import { createServer } from "http";
-import { parse } from "url";
 import next from "next";
 import { Server } from "socket.io";
 import { registerHandlers } from "./handlers";
@@ -26,7 +25,8 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(function () {
   const server = createServer(function (req, res) {
-    if (req.method === "GET" && parse(req.url!).pathname === "/api/budget") {
+    const requestUrl = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
+    if (req.method === "GET" && requestUrl.pathname === "/api/budget") {
       res.writeHead(200, {
         "content-type": "application/json",
         "cache-control": "no-store",
@@ -34,7 +34,7 @@ app.prepare().then(function () {
       res.end(JSON.stringify(budgetStatus()));
       return;
     }
-    handle(req, res, parse(req.url!, true));
+    handle(req, res);
   });
 
   const io = new Server(server, {

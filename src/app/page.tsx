@@ -244,17 +244,17 @@ export default function Home() {
         </div>
 
         <p className="muted" style={{ textAlign: "center", fontSize: 13, margin: 0 }}>
-          {t("Created by")}{" "}
+          Initial mockup by{" "}
           <a href="https://ivanvilla.com" target="_blank" rel="noopener noreferrer">
             Ivan Villa
           </a>
-          {" · "}
+          {" · Most of the game was implemented and further developed by the current maintainer · "}
           <a
-            href="https://github.com/heyivanvilla/world-seek"
+            href="https://github.com/Spectre7002/world-seek"
             target="_blank"
             rel="noopener noreferrer"
           >
-            {t("source code on GitHub")}
+            Source code on GitHub
           </a>
         </p>
       </div>

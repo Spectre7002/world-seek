@@ -8,6 +8,7 @@ import { LanguageProvider } from "@/lib/language";
 const display = Jersey_25({
   subsets: ["latin"],
   weight: "400",
+  adjustFontFallback: false,
   variable: "--ff-display",
   display: "swap",
 });
@@ -17,6 +18,7 @@ const display = Jersey_25({
 const body = Jersey_10({
   subsets: ["latin"],
   weight: "400",
+  adjustFontFallback: false,
   variable: "--ff-mono",
   display: "swap",
 });
@@ -24,6 +26,7 @@ const body = Jersey_10({
 export const metadata: Metadata = {
   title: "World Seek",
   description: "Hide somewhere in the world. Let your friends find you on Street View.",
+  icons: { icon: "/icon.svg" },
 };
 
 export const viewport: Viewport = {

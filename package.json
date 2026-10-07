@@ -1,6 +1,6 @@
 {
   "name": "world-seek",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "cross-env NODE_ENV=development tsx watch server/index.ts",

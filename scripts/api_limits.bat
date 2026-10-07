@@ -12,8 +12,11 @@ pause > nul
 goto :eof
 #>
 
-$project = "worldseek"
-gcloud config set project $project | Out-Null
+$project = (gcloud config get-value project 2>$null).Trim()
+if (-not $project -or $project -eq "(unset)") {
+    throw "No Google Cloud project is selected. Run 'gcloud config set project YOUR_PROJECT_ID' and try again."
+}
+
 $token = (gcloud auth print-access-token).Trim()
 
 $startDate = (Get-Date -Day 1 -Hour 0 -Minute 0 -Second 0).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

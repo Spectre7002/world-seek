@@ -3,7 +3,7 @@
 import LanguageSwitch from "./LanguageSwitch";
 import { useLanguage } from "@/lib/language";
 
-const REPO_URL = "https://github.com/heyivanvilla/world-seek";
+const REPO_URL = "https://github.com/Spectre7002/world-seek";
 
 /** First of next month, in the reader's locale — when the meter rolls over. */
 function nextResetLabel(): string {
@@ -62,7 +62,7 @@ export default function BudgetClosed({ inGame = false }: { inGame?: boolean }) {
         </div>
 
         <p className="muted" style={{ textAlign: "center", fontSize: 13, margin: 0 }}>
-          {t("Made by")}{" "}
+          Initial mockup by{" "}
           <a href="https://ivanvilla.com" target="_blank" rel="noopener noreferrer">
             Ivan Villa
           </a>
