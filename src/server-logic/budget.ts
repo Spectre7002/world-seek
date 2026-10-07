@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 import { dirname } from "node:path";
 
 // Monthly spend cap for the Google Maps APIs.
@@ -219,26 +220,115 @@ export function budgetStatus(): BudgetStatus {
   };
 }
 
-/**
- * Log where the budget stands at startup. Worth doing loudly: a counter sitting
- * on a non-persistent path resets on every redeploy, and unlike an unwritable
- * path that failure is completely silent — the file writes fine, it just isn't
- * the same file next time. Seeing "no saved counter" after every deploy is the
- * tell that the cap isn't actually capping anything.
- */
-export function logBudgetAtBoot(): void {
-  const s = budgetStatus();
-  console.log(
-    `[budget] ${s.period}: ${s.mapLoads}/${s.mapCeiling} map loads, ` +
-      `${s.panoLoads}/${s.panoCeiling} panoramas — ${s.playerGamesLeft} ` +
-      `player-games left on a $${s.budgetUsd} cap`,
+const GOOGLE_CLOUD_PROJECT = "worldseek";
+const MAP_REQUEST_LIMIT = 10_000;
+const PANORAMA_REQUEST_LIMIT = 5_000;
+const REQUEST_COUNT_FILTER =
+  'metric.type="serviceruntime.googleapis.com/api/request_count"';
+
+interface MonitoringResponse {
+  timeSeries?: Array<{
+    resource?: { labels?: { service?: string } };
+    points?: Array<{ value?: { int64Value?: number | string } }>;
+  }>;
+  nextPageToken?: string;
+}
+
+function utcTimestamp(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+async function readMonthlyApiUsage(
+  accessToken: string,
+  startTime: string,
+  endTime: string,
+): Promise<{ mapLoads: number; panoLoads: number }> {
+  const url = new URL(
+    `https://monitoring.googleapis.com/v3/projects/${GOOGLE_CLOUD_PROJECT}/timeSeries`,
   );
-  if (!s.restored && !s.degraded) {
+  url.searchParams.set("filter", REQUEST_COUNT_FILTER);
+  url.searchParams.set("interval.startTime", startTime);
+  url.searchParams.set("interval.endTime", endTime);
+
+  let mapLoads = 0;
+  let panoLoads = 0;
+  let pageToken: string | undefined;
+
+  do {
+    if (pageToken) {
+      url.searchParams.set("pageToken", pageToken);
+    } else {
+      url.searchParams.delete("pageToken");
+    }
+
+    const response = await fetch(url, {
+      headers: { authorization: `Bearer ${accessToken}` },
+    });
+    if (!response.ok) {
+      throw new Error(
+        `Google Cloud Monitoring returned ${response.status}: ${await response.text()}`,
+      );
+    }
+
+    const result = (await response.json()) as MonitoringResponse;
+    for (const series of result.timeSeries ?? []) {
+      const isMapService =
+        series.resource?.labels?.service === "maps-backend.googleapis.com";
+      for (const point of series.points ?? []) {
+        const value = Number(point.value?.int64Value);
+        if (!Number.isSafeInteger(value) || value < 0) {
+          throw new Error("Google Cloud Monitoring returned an invalid request count");
+        }
+        if (isMapService) {
+          mapLoads += value;
+        } else {
+          panoLoads += value;
+        }
+      }
+    }
+    pageToken = result.nextPageToken;
+  } while (pageToken);
+
+  return { mapLoads, panoLoads };
+}
+
+/** Log the current month's actual Google Cloud request counts at startup. */
+export async function logBudgetAtBoot(): Promise<void> {
+  try {
+    const now = new Date();
+    const startTime = utcTimestamp(
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
+    );
+    const endTime = utcTimestamp(now);
+    const accessToken = execSync("gcloud auth print-access-token", {
+      encoding: "utf8",
+    }).trim();
+    if (!accessToken) {
+      throw new Error("gcloud returned an empty access token");
+    }
+
+    const { mapLoads, panoLoads } = await readMonthlyApiUsage(
+      accessToken,
+      startTime,
+      endTime,
+    );
+    const playerGamesLeft = Math.max(
+      0,
+      Math.min(
+        Math.floor((MAP_REQUEST_LIMIT - mapLoads) / MAP_LOADS_PER_PLAYER_GAME),
+        Math.floor((PANORAMA_REQUEST_LIMIT - panoLoads) / PANO_LOADS_PER_PLAYER_GAME),
+      ),
+    );
+    const period = startTime.slice(0, 7);
+
     console.log(
-      `[budget] no saved counter at ${s.statePath} — starting this month at zero. ` +
-        `Normal on the 1st or on a first deploy. If you see this after EVERY ` +
-        `deploy, ${s.statePath} is not on a persistent volume and the spend cap ` +
-        `is not working.`,
+      `[budget] ${period}: ${mapLoads}/${MAP_REQUEST_LIMIT} map loads, ` +
+        `${panoLoads}/${PANORAMA_REQUEST_LIMIT} panoramas — ${playerGamesLeft} player-games left`,
+    );
+  } catch (err) {
+    console.warn(
+      "[budget] unable to fetch Google Cloud usage; server will continue without it",
+      err,
     );
   }
 }

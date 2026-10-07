@@ -58,6 +58,6 @@ app.prepare().then(function () {
 
   server.listen(port, function () {
     console.log("> World Seek ready on http://localhost:" + port);
-    logBudgetAtBoot();
+    void logBudgetAtBoot();
   });
 });

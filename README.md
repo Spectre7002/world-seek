@@ -154,21 +154,24 @@ curl https://worldseek.yourdomain.com/api/budget
 # {"period":"2026-07","mapLoads":4230,"panoLoads":2115,...,"playerGamesLeft":239}
 ```
 
-> **The counter needs a persistent volume**, or it resets on every redeploy — i.e. the cap stops
-> working exactly when you're relying on it. With `docker compose` this is already handled.
+> **The local admission counter needs a persistent volume**, or it resets on every redeploy —
+> i.e. the cap stops working exactly when you're relying on it. With `docker compose` this is
+> already handled.
 > Deploying straight from the Dockerfile (including most PaaS setups), mount a volume at `/data`
 > yourself — the image creates the directory owned by the runtime user, but only your host can
 > make it outlive the container.
 >
-> The server prints where it stands on every boot, so you can tell which you got:
+> On every boot the server queries Google Cloud Monitoring for the current month's actual
+> request counts and prints the free-tier usage:
 >
 > ```
-> [budget] 2026-07: 4230/11428 map loads, 2115/5714 panoramas — 239 player-games left on a $20 cap
+> [budget] 2026-10: 4230/10000 map loads, 2115/5000 panoramas — 38 player-games left
 > ```
 >
-> If instead you see `no saved counter … starting this month at zero` after **every** deploy, the
-> volume isn't persisting and the cap isn't capping. (If the path isn't writable at all, the
-> server says so loudly and keeps counting in memory rather than failing.)
+> The startup query requires `gcloud auth print-access-token` to work in the server environment.
+> If gcloud or the network is unavailable, the server prints a warning and continues. The local
+> admission counter is still exposed by `GET /api/budget`; the startup metrics don't reflect its
+> persistence status.
 
 The per-game numbers above are estimates — how much players wander in Street View moves them,
 and abandoned games get charged in full at start. Expect ±30%. Compare `/api/budget` against

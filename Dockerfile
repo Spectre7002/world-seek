@@ -28,7 +28,7 @@ RUN useradd -m -u 1001 appuser
 # Deliberately NOT a `VOLUME` instruction: that creates an *anonymous* volume,
 # which a redeploy replaces with an empty one — persistence that looks real and
 # isn't. Mount a named volume here instead (see compose.yaml), and check the
-# [budget] line the server logs at boot to confirm it stuck.
+# Keep the volume mounted to preserve the local game-admission counter across redeploys.
 RUN mkdir -p /data && chown appuser:appuser /data
 # Full node_modules kept on purpose: `npm start` -> `tsx server/index.ts` needs tsx,
 # cross-env, next and the TS source (server/, src/) at runtime.

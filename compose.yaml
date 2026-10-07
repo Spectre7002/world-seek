@@ -15,8 +15,8 @@ services:
     volumes:
       # The Maps budget counter. This named volume is the whole reason the cap
       # survives a redeploy — without it the counter starts at zero every deploy
-      # and stops capping anything. The server logs a [budget] line at boot
-      # saying which of the two it got.
+      # and stops capping anything. The [budget] startup log reports Google
+      # Cloud API usage; GET /api/budget reports the local admission counter.
       - world-seek-data:/data
     restart: unless-stopped
 
