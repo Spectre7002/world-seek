@@ -373,9 +373,21 @@ export async function logBudgetAtBoot(): Promise<void> {
     );
     const period = startTime.slice(0, 7);
 
+    const reset = "\x1b[0m";
+    const cyan = "\x1b[36m";
+    const green = "\x1b[32m";
+    const yellow = "\x1b[33m";
+    console.log(`${cyan}=== GOOGLE MAPS API LIMITS (${period}) ===${reset}`);
     console.log(
-      `[budget] ${period}: ${mapLoads}/${MAP_REQUEST_LIMIT} map loads, ` +
-        `${panoLoads}/${PANORAMA_REQUEST_LIMIT} panoramas — ${playerGamesLeft} player-games left`,
+      `${green}Map Loads: ${mapLoads} / ${MAP_REQUEST_LIMIT} ` +
+        `(Remaining: ${Math.max(0, MAP_REQUEST_LIMIT - mapLoads)})${reset}`,
+    );
+    console.log(
+      `${yellow}Panoramas: ${panoLoads} / ${PANORAMA_REQUEST_LIMIT} ` +
+        `(Remaining: ${Math.max(0, PANORAMA_REQUEST_LIMIT - panoLoads)})${reset}`,
+    );
+    console.log(
+      `${cyan}Player-games left: ${playerGamesLeft}${reset}`,
     );
   } catch (err) {
     if (
