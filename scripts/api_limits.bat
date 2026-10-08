@@ -12,12 +12,26 @@ pause > nul
 goto :eof
 #>
 
-$project = (gcloud config get-value project 2>$null).Trim()
+$project = ((gcloud config get-value project 2>$null | Out-String).Trim())
 if (-not $project -or $project -eq "(unset)") {
-    throw "No Google Cloud project is selected. Run 'gcloud config set project YOUR_PROJECT_ID' and try again."
+    $project = $env:GOOGLE_CLOUD_PROJECT
+}
+if (-not $project) {
+    $project = $env:GCLOUD_PROJECT
+}
+if (-not $project -or $project -eq "(unset)") {
+    Write-Host "[!] Не выбран Google Cloud project." -ForegroundColor Red
+    Write-Host "    Выполните: gcloud config set project YOUR_PROJECT_ID" -ForegroundColor Yellow
+    Write-Host "    Или задайте переменную GOOGLE_CLOUD_PROJECT." -ForegroundColor Yellow
+    return
 }
 
-$token = (gcloud auth print-access-token).Trim()
+$token = ((gcloud auth print-access-token 2>$null | Out-String).Trim())
+if (-not $token) {
+    Write-Host "[!] Не выполнен вход в Google Cloud CLI." -ForegroundColor Red
+    Write-Host "    Выполните: gcloud auth login" -ForegroundColor Yellow
+    return
+}
 
 $startDate = (Get-Date -Day 1 -Hour 0 -Minute 0 -Second 0).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $endDate   = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")

@@ -121,7 +121,13 @@ export function playSfx(src: string): void {
   source.start(0);
 }
 
-function playTone(freq: number, durationSec: number, type: OscillatorType, when = 0): void {
+function playTone(
+  freq: number,
+  durationSec: number,
+  type: OscillatorType,
+  when = 0,
+  volumeMultiplier = 1,
+): void {
   if (!isSfxEnabled()) return;
   const ctx = getAudioCtx();
   if (!ctx) return;
@@ -130,7 +136,7 @@ function playTone(freq: number, durationSec: number, type: OscillatorType, when 
   const gain = ctx.createGain();
   osc.type = type;
   osc.frequency.value = freq;
-  const vol = getSfxVolume() * 0.22;
+  const vol = getSfxVolume() * 0.22 * volumeMultiplier;
   gain.gain.setValueAtTime(vol, start);
   gain.gain.exponentialRampToValueAtTime(0.001, start + durationSec);
   osc.connect(gain).connect(ctx.destination);
@@ -139,8 +145,8 @@ function playTone(freq: number, durationSec: number, type: OscillatorType, when 
 }
 
 export function playRoundStartSfx(): void {
-  playTone(523, 0.12, "square", 0);
-  playTone(784, 0.2, "square", 0.12);
+  playTone(523, 0.12, "square", 0, 0.5);
+  playTone(784, 0.2, "square", 0.12, 0.5);
 }
 
 export function playTimeTickSfx(urgent: boolean): void {

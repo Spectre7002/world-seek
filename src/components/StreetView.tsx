@@ -28,9 +28,6 @@ const COMPASS_POINTS = [
   { label: "NW", bearing: 315 },
 ];
 
-const ARROW_TELEPORT_DISTANCE_METERS = 40;
-const ARROW_TELEPORT_RADIUS_METERS = 1;
-
 interface Props {
   mode: "position" | "pano";
   position?: LatLng | null;
@@ -65,6 +62,10 @@ export default function StreetView(props: Props) {
   onPanoRef.current = onPano;
   const onViewRef = useRef(onView);
   onViewRef.current = onView;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const interactiveRef = useRef(interactive);
+  interactiveRef.current = interactive;
   const applyingFollow = useRef(false);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
@@ -78,8 +79,6 @@ export default function StreetView(props: Props) {
   const linksByPanoRef = useRef(new Map<string, google.maps.StreetViewLink[]>());
   const skippedHistoryPanoRef = useRef<string | null>(null);
   const programmaticPanosRef = useRef(new Set<string>());
-  const teleportingRef = useRef(false);
-  const teleportRequestRef = useRef(0);
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
   const [panoHistory, setPanoHistory] = useState<string[]>([]);
@@ -153,7 +152,7 @@ export default function StreetView(props: Props) {
           if (position && currentPano) {
             positionsByPanoRef.current.set(currentPano, position);
           }
-          if (mode === "position") {
+          if (modeRef.current === "position") {
             const id = pano.getPano();
             const pos = position;
             if (id && pos && onPanoRef.current) {
@@ -170,33 +169,7 @@ export default function StreetView(props: Props) {
         pano.addListener("pano_changed", function () {
           const id = pano.getPano();
           if (id) {
-            const previousPanoId = lastPanoRef.current;
-            const previousPosition =
-              (previousPanoId && positionsByPanoRef.current.get(previousPanoId)) ||
-              lastPositionRef.current;
-            const programmatic = programmaticPanosRef.current.delete(id);
-            if (teleportingRef.current && programmatic) {
-              teleportingRef.current = false;
-            }
-            const previousLinks =
-              (previousPanoId && linksByPanoRef.current.get(previousPanoId)) ||
-              linksRef.current;
-            const link = previousLinks.find(function (candidate) {
-              return candidate.pano === id;
-            });
-
-            if (
-              interactive &&
-              !programmatic &&
-              previousPanoId &&
-              previousPosition &&
-              link &&
-              link.heading !== null
-            ) {
-              skippedHistoryPanoRef.current = id;
-              teleportAlongArrow(pano, previousPosition, link.heading);
-            }
-
+            programmaticPanosRef.current.delete(id);
             lastPanoRef.current = id;
             onPanoChanged.current(id);
           }
@@ -232,9 +205,11 @@ export default function StreetView(props: Props) {
       return function () {
         cancelled = true;
         if (clearListeners) clearListeners();
+        panoRef.current = null;
+        prefetchPanoRef.current = null;
       };
     },
-    [mode, interactive]
+    []
   );
 
   useEffect(
@@ -251,9 +226,6 @@ export default function StreetView(props: Props) {
       linksByPanoRef.current.clear();
       skippedHistoryPanoRef.current = null;
       programmaticPanosRef.current.clear();
-      teleportingRef.current = false;
-      teleportRequestRef.current += 1;
-      prefetchPanoRef.current = null;
       setPanoHistory([]);
     },
     [mode, position?.lat, position?.lng, panoId]
@@ -358,71 +330,6 @@ export default function StreetView(props: Props) {
     setPanoHistory(historyRef.current.slice());
     programmaticPanosRef.current.add(target);
     pano.setPano(target);
-  }
-
-  function teleportAlongArrow(
-    pano: google.maps.StreetViewPanorama,
-    origin: google.maps.LatLng,
-    heading: number,
-  ) {
-    teleportingRef.current = true;
-    const requestId = ++teleportRequestRef.current;
-
-    const targetLatLng = google.maps.geometry.spherical.computeOffset(
-      origin,
-      ARROW_TELEPORT_DISTANCE_METERS,
-      heading,
-    );
-    const service = new google.maps.StreetViewService();
-    const currentPov = pano.getPov();
-    const currentZoom = pano.getZoom();
-
-    function applyTargetPano(
-      data: google.maps.StreetViewPanoramaData | null,
-      status: google.maps.StreetViewStatusString,
-    ) {
-        if (requestId !== teleportRequestRef.current) return;
-        if (
-          status !== google.maps.StreetViewStatus.OK ||
-          !data ||
-          !data.location ||
-          !data.location.pano
-        ) {
-          teleportingRef.current = false;
-          return;
-        }
-
-        const targetPano = data.location.pano;
-        programmaticPanosRef.current.add(targetPano);
-        pano.setPano(targetPano);
-        pano.setPov({
-          heading,
-          pitch: currentPov.pitch,
-        });
-        pano.setZoom(currentZoom);
-    }
-
-    service.getPanorama(
-      {
-        location: targetLatLng,
-        radius: ARROW_TELEPORT_RADIUS_METERS,
-        source: google.maps.StreetViewSource.OUTDOOR,
-      },
-      function (data, status) {
-        if (status === google.maps.StreetViewStatus.ZERO_RESULTS) {
-          service.getPanorama(
-            {
-              location: targetLatLng,
-              radius: 5,
-              source: google.maps.StreetViewSource.OUTDOOR,
-            },
-            applyTargetPano,
-          );
-          return;
-        }
-        applyTargetPano(data, status);
-      },
-    );
   }
 
   function prefetchNextPano(

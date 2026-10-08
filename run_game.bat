@@ -18,11 +18,31 @@ if "%NGROK_DOMAIN%"=="" (
   start "Ngrok Tunnel" cmd /k "ngrok http --url=%NGROK_DOMAIN% 3000"
 )
 
-echo Starting the game server...
-start "World Seek Server" cmd /k "npm run dev"
-
+set "SERVER_READY="
+powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
+if not errorlevel 1 (
+  echo An existing process is already listening on port 3000.
+) else (
+  echo Starting the game server...
+  start "World Seek Server" cmd /k "npm run dev"
+)
 echo Waiting for the server to start...
-timeout /t 5 /nobreak > nul
+
+for /l %%i in (1,1,60) do (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Invoke-WebRequest -Uri http://localhost:3000/ -UseBasicParsing -TimeoutSec 2 | Out-Null; exit 0 } catch { exit 1 }"
+  if not errorlevel 1 (
+    set "SERVER_READY=1"
+    goto server_ready
+  )
+  timeout /t 1 /nobreak > nul
+)
+
+:server_ready
+if not defined SERVER_READY (
+  echo The World Seek server did not become ready within 60 seconds.
+  pause
+  exit /b 1
+)
 
 if not "%NGROK_DOMAIN%"=="" (
   echo Opening the public game in Google Chrome...

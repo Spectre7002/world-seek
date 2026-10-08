@@ -691,16 +691,17 @@ button.stepper-btn {
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #000;
+  background: #242424;
 }
 
 .round-streetview {
   position: absolute;
   inset: 0;
-  background: #000;
+  background: #242424;
 }
 
 .street-view-canvas {
+  background: #242424;
   pointer-events: auto;
 }
 

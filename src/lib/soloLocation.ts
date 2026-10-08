@@ -34,23 +34,51 @@ const REGIONS: Region[] = [
   { box: [-33.95, 18.39, -33.90, 18.44], weight: 1 }, // Cape Town
 ];
 
-const REGION_RADIUS_M = 4_000;
-const MAX_ATTEMPTS = 24;
+const REGION_RADIUS_M = 250;
+const MAX_ATTEMPTS = 80;
 const recentPanoIds = new Set<string>();
 
-// Guaranteed-covered landmarks. Last-resort only, so generation never fails.
+// Road-adjacent seeds used only after random urban sampling is exhausted.
 const FALLBACK_SEEDS: LatLng[] = [
-  { lat: 40.758, lng: -73.9855 }, // Times Square
-  { lat: 48.8584, lng: 2.2945 }, // Eiffel Tower
-  { lat: 51.5007, lng: -0.1246 }, // Westminster
-  { lat: 35.6595, lng: 139.7005 }, // Shibuya
-  { lat: -33.8568, lng: 151.2153 }, // Sydney Opera House
-  { lat: 43.6426, lng: -79.3871 }, // Toronto (CN Tower)
-  { lat: 52.5163, lng: 13.3777 }, // Brandenburg Gate
-  { lat: 41.8902, lng: 12.4922 }, // Colosseum
-  { lat: -22.9519, lng: -43.2105 }, // Rio (Christ the Redeemer)
-  { lat: -33.9249, lng: 18.4241 }, // Cape Town
+  { lat: 40.7587, lng: -73.9851 }, // New York, Broadway
+  { lat: 48.8566, lng: 2.3522 }, // Paris, Rue de Rivoli area
+  { lat: 51.5074, lng: -0.1278 }, // London, central streets
+  { lat: 35.6595, lng: 139.7005 }, // Tokyo, Shibuya
+  { lat: -33.8688, lng: 151.2093 }, // Sydney, central streets
+  { lat: 43.6532, lng: -79.3832 }, // Toronto, central streets
+  { lat: 52.5200, lng: 13.4050 }, // Berlin, central streets
+  { lat: 41.9028, lng: 12.4964 }, // Rome, central streets
+  { lat: -22.9068, lng: -43.1729 }, // Rio, central streets
+  { lat: -33.9249, lng: 18.4241 }, // Cape Town, central streets
 ];
+
+const NON_ROAD_TERMS = [
+  "hotel",
+  "park",
+  "garden",
+  "museum",
+  "airport",
+  "stadium",
+  "beach",
+  "trail",
+  "lake",
+  "university",
+  "hospital",
+];
+
+function looksLikeNonRoadPanorama(
+  data: google.maps.StreetViewPanoramaData,
+): boolean {
+  const text = [
+    data.location?.description,
+    data.location?.shortDescription,
+    ...(data.links || []).map((link) => link.description),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return NON_ROAD_TERMS.some((term) => text.includes(term));
+}
 
 function pickWeighted(regions: Region[]): Region {
   const total = regions.reduce((sum, r) => sum + r.weight, 0);
@@ -94,7 +122,8 @@ function resolvePano(
           status === google.maps.StreetViewStatus.OK &&
           data?.location?.pano &&
           pos &&
-          hasRoadLinks
+          hasRoadLinks &&
+          !looksLikeNonRoadPanorama(data)
         ) {
           resolve({ panoId: data.location.pano, lat: pos.lat(), lng: pos.lng() });
         } else {
@@ -122,14 +151,14 @@ export async function generateSoloTarget(): Promise<HidingSpot> {
     }
   }
 
-  // Fallback: shuffle the landmark seeds and snap the first that resolves.
+  // Fallback: use road-biased city seeds with a small search radius.
   const seeds = [...FALLBACK_SEEDS].sort(() => Math.random() - 0.5);
   for (const seed of seeds) {
     const jitteredSeed = {
-      lat: seed.lat + (Math.random() - 0.5) * 0.025,
-      lng: seed.lng + (Math.random() - 0.5) * 0.025,
+      lat: seed.lat + (Math.random() - 0.5) * 0.003,
+      lng: seed.lng + (Math.random() - 0.5) * 0.003,
     };
-    const pano = await resolvePano(google, jitteredSeed, 2_000);
+    const pano = await resolvePano(google, jitteredSeed, REGION_RADIUS_M);
     if (pano && !recentPanoIds.has(pano.panoId)) {
       recentPanoIds.add(pano.panoId);
       return pano;
