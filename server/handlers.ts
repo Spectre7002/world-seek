@@ -37,7 +37,6 @@ import {
   recordLivePin,
   recordLiveView,
   recordSoloGuess,
-  recordSoloTarget,
   removePlayer,
   returnToLobby,
   scoreRound,
@@ -268,17 +267,6 @@ export function registerHandlers(io: Server): void {
         return reply(cb, { ok: false, reason: "rejected" });
       }
       if (allConnectedHidden(s.room)) startFinding(s.room);
-      broadcastState(io, s.room);
-      reply(cb, { ok: true });
-    });
-
-    socket.on("solo:target", function (spot: HidingSpot, cb?: AckFn) {
-      const s = seat(socket);
-      if (!s) return reply(cb, { ok: false, reason: "not_seated" });
-      if (!isValidHidingSpot(spot)) return reply(cb, { ok: false, reason: "rejected" });
-      if (!recordSoloTarget(s.room, pickHidingSpot(spot))) {
-        return reply(cb, { ok: false, reason: "rejected" });
-      }
       broadcastState(io, s.room);
       reply(cb, { ok: true });
     });

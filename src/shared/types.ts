@@ -59,6 +59,13 @@ export interface LatLng {
   lng: number;
 }
 
+/** A server-selected Street View location from the generated global pool. */
+export interface Location extends LatLng {
+  heading: number;
+  pitch: number;
+  panoId: string;
+}
+
 export interface HidingSpot extends LatLng {
   /** Street View panorama id at this spot (broadcast to guessers instead of coords). */
   panoId: string;
@@ -107,7 +114,7 @@ export interface Room {
   players: Player[];
   order: string[];
   currentRound: number;
-  targets: HidingSpot[];
+  targets: Location[];
   cycleCount?: number; // Номер текущего круга пряток (от 1 до 5)
 }
 
@@ -130,6 +137,8 @@ export interface CurrentTarget {
   name: string;
   emoji: string;
   panoId: string; // imagery only; coords never sent here
+  heading: number;
+  pitch: number;
 }
 
 export interface PublicGuess extends LatLng {

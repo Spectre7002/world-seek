@@ -58,6 +58,8 @@ export function projectFor(room: Room, viewerId: string): PublicState {
         name: target.name,
         emoji: target.emoji,
         panoId: target.hiding.panoId,
+        heading: 0,
+        pitch: 0,
       };
     }
   }
@@ -100,7 +102,12 @@ export function projectFor(room: Room, viewerId: string): PublicState {
   if (solo) {
     const target = soloTarget(room);
     if (room.phase === "finding" && target) {
-      currentTarget = { ...SOLO_TARGET, panoId: target.panoId };
+      currentTarget = {
+        ...SOLO_TARGET,
+        panoId: target.panoId,
+        heading: target.heading,
+        pitch: target.pitch,
+      };
     }
     if (room.phase === "results" && target) {
       const guesses: PublicGuess[] = [];

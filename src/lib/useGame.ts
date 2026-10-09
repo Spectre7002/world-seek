@@ -226,13 +226,6 @@ export function useGame(code: string) {
     [dispatch],
   );
 
-  const sendSoloTarget = useCallback(
-    function (spot: HidingSpot) {
-      dispatch("solo:target", spot);
-    },
-    [dispatch],
-  );
-
   const previewGuess = useCallback(function (at: LatLng) {
     const socket = getSocket();
     if (socket.connected && seated.current) socket.emit("guess:preview", at);
@@ -296,7 +289,6 @@ export function useGame(code: string) {
     start: start,
     hide: hide,
     guess: guess,
-    sendSoloTarget: sendSoloTarget,
     previewGuess: previewGuess,
     syncView: syncView,
     nextRound: nextRound,

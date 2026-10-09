@@ -9,7 +9,6 @@ import JoinForm from "./JoinForm";
 import Lobby from "./Lobby";
 import HidingPhase from "./HidingPhase";
 import FindingPhase from "./FindingPhase";
-import SoloLoading from "./SoloLoading";
 import ResultsPhase from "./ResultsPhase";
 import FinalScores from "./FinalScores";
 import TextChat from "./TextChat";
@@ -78,14 +77,6 @@ export default function GameRoom(props: { code: string }) {
           />
         );
       case "finding":
-        if (s.solo && !s.currentTarget) {
-          return (
-            <SoloLoading
-              key={s.currentRound}
-              onTarget={game.sendSoloTarget}
-            />
-          );
-        }
         return (
           <FindingPhase
             state={s}

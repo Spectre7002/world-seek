@@ -2,10 +2,12 @@ import {
   DEFAULT_SETTINGS,
   type HidingSpot,
   type LatLng,
+  type Location,
   type Player,
   type Room,
   type Settings,
 } from "../shared/types";
+import { getRandomLocation } from "./locations";
 import { computeScore, haversineKm } from "../shared/scoring";
 import { generatePlayerId, generateRoomCode, generateToken } from "../shared/codes";
 import { DEFAULT_EMOJI, isValidEmoji } from "../shared/emojis";
@@ -365,7 +367,7 @@ export function startSolo(room: Room): boolean {
   room.mode = "solo";
   room.phase = "finding";
   room.order = [];
-  room.targets = [];
+  room.targets = [getRandomLocation()];
   room.currentRound = 0;
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
@@ -379,14 +381,7 @@ export function startSolo(room: Room): boolean {
   return true;
 }
 
-export function recordSoloTarget(room: Room, spot: HidingSpot): boolean {
-  if (room.mode !== "solo" || room.phase !== "finding") return false;
-  if (room.targets[room.currentRound]) return false;
-  room.targets[room.currentRound] = spot;
-  return true;
-}
-
-export function soloTarget(room: Room): HidingSpot | null {
+export function soloTarget(room: Room): Location | null {
   if (room.mode !== "solo") return null;
   return room.targets[room.currentRound] ?? null;
 }
@@ -424,6 +419,7 @@ export function nextSoloRound(room: Room): boolean {
     room.phase = "finished";
   } else {
     room.currentRound += 1;
+    room.targets[room.currentRound] = getRandomLocation();
     room.phase = "finding";
   }
   return true;

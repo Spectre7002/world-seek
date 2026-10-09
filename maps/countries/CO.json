@@ -1,0 +1,15 @@
+﻿{
+    "distributionStrategy":  {
+                                 "minMinDistance":  50,
+                                 "key":  "FixedCountByMaxMinDistance",
+                                 "locationCountGoal":  2000
+                             },
+    "globalLocationFilter":  "ArrowCount gte 2 and IsScout eq false and DescriptionLength eq 0 and Tunnels10 eq 0 and Roads10 gte 1",
+    "countryCodes":  [
+                         "CO"
+                     ],
+    "output":  {
+                   "panoVerificationStrategy":  "Newest",
+                   "globalHeadingExpression":  "DrivingDirectionAngle + 90"
+               }
+}

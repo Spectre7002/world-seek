@@ -1,0 +1,4 @@
+Eysturoy region	6	491	50m.
+Norðoyar region	1	226	50m.
+Streymoy region	449	453	150m.
+Vágar region	4	226	50m.

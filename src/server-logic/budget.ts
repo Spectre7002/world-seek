@@ -25,8 +25,8 @@ import { dirname, join } from "node:path";
 const MAP_LOADS_PER_PLAYER_GAME = 150;
 const PANO_LOADS_PER_PLAYER_GAME = 75;
 
-// Solo is far cheaper: no hiding phase, no watch view, and generateSoloTarget's
-// StreetViewService lookups bill under Street View Metadata, which is free.
+// Solo is far cheaper: no hiding phase, no watch view, and server-selected
+// locations require no Street View Metadata lookup.
 // Each round is a finding map + a results map + one panorama.
 const MAP_LOADS_PER_SOLO_ROUND = 2;
 const PANO_LOADS_PER_SOLO_ROUND = 1;

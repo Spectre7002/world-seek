@@ -1,0 +1,15 @@
+{
+  "countryCodes": [
+    "*"
+  ],
+  "distributionStrategy": {
+    "key": "FixedCountByMaxMinDistance",
+    "locationCountGoal": 100000,
+    "minMinDistance": 100
+  },
+  "globalLocationFilter": "ArrowCount gte 2 and IsScout eq false and DescriptionLength eq 0 and Tunnels10 eq 0 and Roads10 gte 1",
+  "output": {
+    "panoVerificationStrategy": "Newest",
+    "globalHeadingExpression": "DrivingDirectionAngle + 90"
+  }
+}
