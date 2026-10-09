@@ -37,3 +37,5 @@ temp_reference/
 
 # Personal launcher may contain a private tunnel URL
 run_game.local.bat
+
+repomix*.*

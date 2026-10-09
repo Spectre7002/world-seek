@@ -9,7 +9,6 @@ player is hiding using Google Street View. 🏆 Points are awarded by distance �
 The initial game mockup was created by [Ivan Villa](https://ivanvilla.com). This repository
 contains the current maintained implementation of the game.
 
-▶️ **[Watch the game walkthrough](https://youtu.be/eQZJzsQGTDQ)**
 
 
 ## 🧰 Stack
