@@ -21,6 +21,7 @@ export interface Settings {
   voiceChat: boolean;
   /** Whether hiding spots may use community and photosphere imagery. */
   allowUnofficialCoverage: boolean;
+  selectedMap: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   textChat: true,
   voiceChat: false,
   allowUnofficialCoverage: false,
+  selectedMap: "global",
 };
 
 // ---------------------------------------------------------------------------
@@ -53,6 +55,29 @@ export interface ChatMessage {
  * "solo" = the game picks a random location each round and the lone player guesses.
  */
 export type GameMode = "solo" | "multiplayer";
+
+export type MapCategory = "global" | "continents" | "countries";
+export type MapId = "global" | `continent:${string}` | `country:${string}`;
+
+export interface MapOption {
+  id: MapId;
+  category: MapCategory;
+  code: string;
+  name: string;
+}
+
+export interface MapCatalog {
+  global: MapOption;
+  continents: MapOption[];
+  countries: MapOption[];
+}
+
+export interface RegionBounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
 
 export interface LatLng {
   lat: number;
@@ -185,6 +210,8 @@ export interface PublicState {
   phase: Phase;
   solo: boolean; // true when this is a single-player game (system-picked locations)
   settings: Settings;
+  maps: MapCatalog;
+  mapBounds: RegionBounds | null;
   gameMasterId: string;
   players: PublicPlayer[];
 
@@ -248,4 +275,9 @@ export type ReconnectAck =
 // Acknowledgement for fire-and-forget game actions (start/hide/guess/next/lobby).
 export type ActionAck =
   | { ok: true }
-  | { ok: false; reason: "not_seated" | "rejected" | "budget" };
+  | {
+      ok: false;
+      reason: "not_seated" | "rejected" | "budget" |
+        "Нельзя спрятаться за пределами выбранной страны" |
+        "Нельзя спрятаться за пределами выбранного региона";
+    };

@@ -5,7 +5,7 @@ import { loadGoogleMaps } from "@/lib/mapsLoader";
 import { EARTHY_MAP_STYLE } from "@/lib/mapStyle";
 import { createImageMarker, type ImageMarker } from "@/lib/ImageMarkerOverlay";
 import { playSfx } from "@/lib/sfx";
-import type { LatLng } from "@/shared/types";
+import type { LatLng, RegionBounds } from "@/shared/types";
 
 // The world-overview the guess map opens on (and returns to each new round).
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
@@ -47,6 +47,7 @@ interface Props {
    */
   resetViewKey?: string | number;
   className?: string;
+  restriction?: RegionBounds | null;
 }
 
 export default function MapPicker({
@@ -60,6 +61,7 @@ export default function MapPicker({
   coverage,
   resetViewKey,
   className,
+  restriction,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -115,6 +117,15 @@ export default function MapPicker({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    mapRef.current.setOptions({
+      restriction: restriction
+        ? { latLngBounds: restriction, strictBounds: true }
+        : undefined,
+    });
+  }, [restriction, ready]);
 
   // --- blue Street View coverage overlay (like Pegman on Google Maps) ---
   useEffect(() => {
@@ -302,5 +313,18 @@ export default function MapPicker({
     }
   }, [ready, markers, lines, fitToContent]);
 
-  return <div ref={ref} className={className} style={{ width: "100%", height: "100%" }} />;
+  return (
+    <div
+      ref={ref}
+      className={className}
+      style={{ width: "100%", height: "100%" }}
+      onClickCapture={function (event) {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest("a")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    />
+  );
 }

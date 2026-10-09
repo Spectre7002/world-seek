@@ -48,7 +48,6 @@ import {
 import { projectFor } from "../src/server-logic/projection";
 import { roomCount } from "../src/server-logic/store";
 import {
-  budgetStatus,
   chargeIfAffordable,
   multiplayerUnits,
   soloUnits,
@@ -63,6 +62,8 @@ import {
   sanitizeSettings,
   toSafeString,
 } from "../src/shared/validate";
+import { isAvailableMap } from "../src/server-logic/locations";
+import { isInsideSelectedRegion } from "../src/server-logic/countryValidator";
 
 const MAX_ROOMS = 5000;
 const MAX_CONNECTIONS = 4000;
@@ -130,8 +131,6 @@ export function registerHandlers(io: Server): void {
         payload: { gmName: string; gmEmoji?: string; settings?: Partial<Settings> },
         ack: (res: CreateAck) => void,
       ) {
-        if (budgetStatus().exhausted) return ack({ ok: false, error: "budget" });
-
         const data = socket.data as Record<string, number>;
         if (
           roomCount() >= MAX_ROOMS ||
@@ -140,9 +139,13 @@ export function registerHandlers(io: Server): void {
         ) {
           return ack({ ok: false, error: "server_full" });
         }
+        const cleanSettings = sanitizeSettings(payload?.settings);
+        if (cleanSettings.selectedMap && !isAvailableMap(cleanSettings.selectedMap)) {
+          delete cleanSettings.selectedMap;
+        }
         const created = createRoom(
           toSafeString(payload?.gmName, 24),
-          sanitizeSettings(payload?.settings),
+          cleanSettings,
           typeof payload?.gmEmoji === "string" ? payload.gmEmoji : undefined,
         );
         const room = created.room;
@@ -234,6 +237,9 @@ export function registerHandlers(io: Server): void {
         }
         if (payload && payload.settings) {
           const clean = sanitizeSettings(payload.settings);
+          if (clean.selectedMap && !isAvailableMap(clean.selectedMap)) {
+            delete clean.selectedMap;
+          }
           Object.assign(s.room.settings, clean);
           saveRoom(s.room);
           broadcastState(io, s.room);
@@ -246,7 +252,12 @@ export function registerHandlers(io: Server): void {
       const s = seat(socket);
       if (!s) return reply(cb, { ok: false, reason: "not_seated" });
       const active = connectedPlayers(s.room).length;
-      if (!isGameMaster(s.room, s.playerId) || s.room.phase !== "lobby" || active < 1) {
+      if (
+        !isGameMaster(s.room, s.playerId) ||
+        s.room.phase !== "lobby" ||
+        active < 1 ||
+        (s.room.players.length >= 2 && active < 2)
+      ) {
         return reply(cb, { ok: false, reason: "rejected" });
       }
 
@@ -263,6 +274,18 @@ export function registerHandlers(io: Server): void {
       const s = seat(socket);
       if (!s) return reply(cb, { ok: false, reason: "not_seated" });
       if (!isValidHidingSpot(spot)) return reply(cb, { ok: false, reason: "rejected" });
+      if (!isInsideSelectedRegion(
+        spot.lat,
+        spot.lng,
+        isAvailableMap(s.room.settings.selectedMap) ? s.room.settings.selectedMap : "global",
+      )) {
+        return reply(cb, {
+          ok: false,
+          reason: s.room.settings.selectedMap.startsWith("country:")
+            ? "Нельзя спрятаться за пределами выбранной страны"
+            : "Нельзя спрятаться за пределами выбранного региона",
+        });
+      }
       if (!recordHide(s.room, s.playerId, pickHidingSpot(spot))) {
         return reply(cb, { ok: false, reason: "rejected" });
       }
@@ -270,6 +293,33 @@ export function registerHandlers(io: Server): void {
       broadcastState(io, s.room);
       reply(cb, { ok: true });
     });
+
+    socket.on(
+      "hide:validate",
+      function (
+        spot: HidingSpot,
+        cb: (result: { ok: true; spot: HidingSpot } | { ok: false; reason: string }) => void,
+      ) {
+        const s = seat(socket);
+        if (!s || !isValidHidingSpot(spot)) return cb({ ok: false, reason: "invalid" });
+        if (!isInsideSelectedRegion(
+          spot.lat,
+          spot.lng,
+          isAvailableMap(s.room.settings.selectedMap) ? s.room.settings.selectedMap : "global",
+        )) {
+          return cb({
+            ok: false,
+            reason: s.room.settings.selectedMap.startsWith("country:")
+              ? "Нельзя спрятаться за пределами выбранной страны"
+              : "Нельзя спрятаться за пределами выбранного региона",
+          });
+        }
+        cb({
+          ok: true,
+          spot,
+        });
+      },
+    );
 
     socket.on("guess:preview", function (at: LatLng) {
       if (!rateOk(socket, "preview", 50)) return;

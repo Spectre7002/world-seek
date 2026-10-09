@@ -14,27 +14,24 @@ import { useLanguage } from "@/lib/language";
 interface Props {
   state: PublicState;
   onHide: (spot: HidingSpot) => void;
+  onValidateHide: (spot: HidingSpot) => Promise<{ ok: boolean; spot?: HidingSpot; reason?: string }>;
   speakingIds?: Set<string>;
 }
 
 type Coverage = "unknown" | "checking" | "ok" | "none";
 
-function snapRadius(lat: number, zoom: number): number {
-  const metersPerPixel =
-    (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, zoom);
-  return Math.min(500000, Math.max(500, Math.round(metersPerPixel * 60)));
-}
-
 export default function HidingPhase(props: Props) {
   const { t } = useLanguage();
   const state = props.state;
   const onHide = props.onHide;
+  const onValidateHide = props.onValidateHide;
   const speakingIds = props.speakingIds;
 
   const [query, setQuery] = useState<LatLng | null>(null);
   const [queryRadius, setQueryRadius] = useState(500);
   const [resolved, setResolved] = useState<ResolvedPano | null>(null);
   const [coverage, setCoverage] = useState<Coverage>("unknown");
+  const [mapValidation, setMapValidation] = useState<"unknown" | "checking" | "ok" | "outside_map" | "outside_selected_country" | "outside_selected_region" | "not_official_road">("unknown");
 
   if (state.youHaveHidden) {
     return (
@@ -64,40 +61,58 @@ export default function HidingPhase(props: Props) {
 
   function pick(p: LatLng, zoom: number) {
     setQuery(p);
-    setQueryRadius(snapRadius(p.lat, zoom));
+    void zoom;
+    // Google caps Street View searches at 50 km; use that maximum so every
+    // click can snap to the nearest available official road.
+    setQueryRadius(50000);
     setResolved(null);
     setCoverage("checking");
+    setMapValidation("checking");
   }
 
   function onPano(res: ResolvedPano | null) {
     if (!res) {
       setResolved(null);
       setCoverage("none");
+      setMapValidation("outside_map");
       return;
     }
+    // Use the actual Street View road coordinate so the pin visibly snaps to it.
     setResolved(res);
     setCoverage("ok");
+    const selectedPoint = {
+      lat: res.lat,
+      lng: res.lng,
+      panoId: res.panoId,
+    };
+    onValidateHide(selectedPoint).then((result) => {
+      if (result.ok) {
+        setMapValidation("ok");
+      } else {
+        setMapValidation(
+          result.reason === "Нельзя спрятаться за пределами выбранной страны"
+            ? "outside_selected_country"
+            : result.reason === "Нельзя спрятаться за пределами выбранного региона"
+            ? "outside_selected_region"
+            : (result.reason as typeof mapValidation) || "outside_map",
+        );
+      }
+    });
   }
 
   function confirm() {
-    if (resolved && coverage === "ok") {
+    if (resolved && coverage === "ok" && mapValidation === "ok") {
       onHide({ lat: resolved.lat, lng: resolved.lng, panoId: resolved.panoId });
     }
   }
 
   function handleTimeUp() {
-    if (resolved && coverage === "ok") {
+    if (resolved && coverage === "ok" && mapValidation === "ok") {
       confirm();
-    } else {
-      onHide({
-        lat: 48.8584,
-        lng: 2.2945,
-        panoId: "CBISS3k4o_4AAAQfwo_2Tw",
-      });
     }
   }
 
-  const canHide = !!resolved && coverage === "ok";
+  const canHide = !!resolved && coverage === "ok" && mapValidation === "ok";
   const markerSpot: LatLng | null = resolved
     ? { lat: resolved.lat, lng: resolved.lng }
     : query;
@@ -115,7 +130,19 @@ export default function HidingPhase(props: Props) {
               radius={queryRadius}
               allowUnofficialCoverage={state.settings.allowUnofficialCoverage}
               onPano={onPano}
+              onPanoError={(reason) => {
+                setCoverage(reason === "none" ? "none" : "ok");
+                setMapValidation(reason === "not_official_road" ? "not_official_road" : "outside_map");
+              }}
             />
+          ) : mapValidation === "checking" ? (
+            <span className="muted">{t("Checking selected map…")}</span>
+          ) : mapValidation === "outside_map" ? (
+            <span style={{ color: "var(--warn)" }}>{t("You cannot hide here: outside the selected region.")}</span>
+          ) : mapValidation === "outside_selected_country" ? (
+            <span style={{ color: "var(--warn)" }}>{t("Нельзя спрятаться за пределами выбранной страны")}</span>
+          ) : mapValidation === "outside_selected_region" ? (
+            <span style={{ color: "var(--warn)" }}>{t("Нельзя спрятаться за пределами выбранного региона")}</span>
           ) : (
             <div className="hiding-preview-prompt">{t("Choose a spot on the map to load Street View.")}</div>
           )}
@@ -178,6 +205,14 @@ export default function HidingPhase(props: Props) {
                 <span className="muted">{t("Loading panorama…")}</span>
               ) : coverage === "none" ? (
                 <span style={{ color: "var(--warn)" }}>{t("No Street View found nearby.")}</span>
+              ) : mapValidation === "not_official_road" ? (
+                <span style={{ color: "var(--warn)" }}>{t("You cannot hide here: official roads only.")}</span>
+              ) : mapValidation === "outside_map" ? (
+                <span style={{ color: "var(--warn)" }}>{t("You cannot hide here: outside the selected region.")}</span>
+              ) : mapValidation === "outside_selected_country" ? (
+                <span style={{ color: "var(--warn)" }}>{t("Нельзя спрятаться за пределами выбранной страны")}</span>
+              ) : mapValidation === "outside_selected_region" ? (
+                <span style={{ color: "var(--warn)" }}>{t("Нельзя спрятаться за пределами выбранного региона")}</span>
               ) : (
                 <span className="muted">{t("Hide in this panorama?")}</span>
               )}

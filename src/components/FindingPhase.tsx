@@ -93,6 +93,8 @@ export default function FindingPhase(props: Props) {
         views={state.liveViews}
         current={state.guessedCount}
         total={state.expectedGuessers}
+        players={state.players}
+        excludePlayerId={state.youId}
       />
     );
   }
@@ -108,6 +110,7 @@ export default function FindingPhase(props: Props) {
         current={state.guessedCount}
         total={state.expectedGuessers}
         players={state.players}
+        excludePlayerId={state.currentTarget?.id}
       />
     );
   }
@@ -209,6 +212,7 @@ function WatchView(props: {
   current: number;
   total: number;
   players?: PublicPlayer[];
+  excludePlayerId?: string;
 }) {
   const { t } = useLanguage();
   const roundLabel = props.roundLabel;
@@ -219,11 +223,22 @@ function WatchView(props: {
   const current = props.current;
   const total = props.total;
   const players = props.players;
+  const hunterPlayers = (players || []).filter(function (player) {
+    return player.id !== props.excludePlayerId;
+  });
   const [selectedHunterId, setSelectedHunterId] = useState("");
-  const selectedView =
-    views.find(function (view) {
-      return view.playerId === selectedHunterId;
-    }) || views[0] || null;
+  useEffect(function () {
+    if (selectedHunterId && hunterPlayers.some((player) => player.id === selectedHunterId)) {
+      return;
+    }
+    const firstAvailable = hunterPlayers.find((player) =>
+      views.some((view) => view.playerId === player.id),
+    );
+    setSelectedHunterId(firstAvailable?.id || hunterPlayers[0]?.id || "");
+  }, [selectedHunterId, hunterPlayers, views]);
+  const selectedView = views.find(function (view) {
+    return view.playerId === selectedHunterId;
+  }) || null;
 
   if (markers.length === 0 && views.length === 0) {
     return (
@@ -251,19 +266,20 @@ function WatchView(props: {
             <strong>{title}</strong>
             <span>{roundLabel} · {t("live hunter view")}</span>
             <div className="watch-hunter-tabs" role="tablist" aria-label={t("Choose a hunter")}>
-              {views.map(function (view) {
+              {hunterPlayers.map(function (player) {
+                const hasView = views.some((view) => view.playerId === player.id);
                 return (
                   <button
                     type="button"
-                    key={view.playerId}
+                    key={player.id}
                     role="tab"
-                    aria-selected={selectedView?.playerId === view.playerId}
-                    className={selectedView?.playerId === view.playerId ? "is-selected" : ""}
+                    aria-selected={selectedHunterId === player.id}
+                    className={selectedHunterId === player.id ? "is-selected" : ""}
                     onClick={function () {
-                      setSelectedHunterId(view.playerId);
+                      setSelectedHunterId(player.id);
                     }}
                   >
-                    {view.emoji} {view.name}
+                    {player.name}{!hasView ? ` (${t("waiting")})` : ""}
                   </button>
                 );
               })}

@@ -7,7 +7,7 @@ import {
   type Room,
   type Settings,
 } from "../shared/types";
-import { getRandomLocation } from "./locations";
+import { getRandomLocation, isAvailableMap, type MapId } from "./locations";
 import { computeScore, haversineKm } from "../shared/scoring";
 import { generatePlayerId, generateRoomCode, generateToken } from "../shared/codes";
 import { DEFAULT_EMOJI, isValidEmoji } from "../shared/emojis";
@@ -158,8 +158,12 @@ export function removePlayer(
 
 export function startGame(room: Room): boolean {
   if (room.phase !== "lobby") return false;
-  if (connectedPlayers(room).length === 1) return startSolo(room);
-  if (connectedPlayers(room).length < 2) return false;
+  const connected = connectedPlayers(room);
+  if (room.players.length < 2) {
+    if (connected.length === 1) return startSolo(room);
+    return false;
+  }
+  if (connected.length < 2) return false;
 
   room.mode = "multiplayer";
   room.phase = "hiding";
@@ -229,7 +233,6 @@ export function recordGuess(room: Room, guesserId: string, at: LatLng): boolean 
   const points = computeScore(distanceKm, room.settings);
   guesser.guesses[targetId] = { lat: at.lat, lng: at.lng, distanceKm: distanceKm, points: points };
   guesser.livePin = null;
-  guesser.liveView = null;
   return true;
 }
 
@@ -367,7 +370,7 @@ export function startSolo(room: Room): boolean {
   room.mode = "solo";
   room.phase = "finding";
   room.order = [];
-  room.targets = [getRandomLocation()];
+  room.targets = [getRandomLocation(isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global")];
   room.currentRound = 0;
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
@@ -419,7 +422,8 @@ export function nextSoloRound(room: Room): boolean {
     room.phase = "finished";
   } else {
     room.currentRound += 1;
-    room.targets[room.currentRound] = getRandomLocation();
+    const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
+    room.targets[room.currentRound] = getRandomLocation(mapId);
     room.phase = "finding";
   }
   return true;

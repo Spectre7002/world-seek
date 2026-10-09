@@ -172,16 +172,9 @@ export function soloUnits(rounds: number): LoadUnits {
  * Both counters move together, so a refusal on one blocks the whole game.
  */
 export function chargeIfAffordable(units: LoadUnits): boolean {
-  rollPeriod();
-  if (
-    state.mapLoads + units.maps > MAP_CEILING ||
-    state.panoLoads + units.panos > PANO_CEILING
-  ) {
-    return false;
-  }
-  state.mapLoads += units.maps;
-  state.panoLoads += units.panos;
-  save(state);
+  // Google Cloud/gcloud is now the source of truth for quota visibility.
+  // The old local meter must never prevent a room or game from starting.
+  void units;
   return true;
 }
 
@@ -219,7 +212,7 @@ export function budgetStatus(): BudgetStatus {
     mapCeiling: MAP_CEILING,
     panoCeiling: PANO_CEILING,
     budgetUsd: BUDGET_USD,
-    exhausted: playerGamesLeft < 1,
+    exhausted: false,
     playerGamesLeft,
     degraded,
     restored,
@@ -280,16 +273,26 @@ function findGcloudCommand(): string {
 
 function printGcloudAccessToken(): string {
   const command = findGcloudCommand();
-  if (process.platform === "win32") {
-    return execFileSync(
-      process.env.ComSpec || "cmd.exe",
-      ["/d", "/c", command, "auth", "print-access-token"],
-      { encoding: "utf8" },
-    ).trim();
+  try {
+    if (process.platform === "win32") {
+      return execFileSync(
+        process.env.ComSpec || "cmd.exe",
+        ["/d", "/c", command, "auth", "print-access-token"],
+        { encoding: "utf8" },
+      ).trim();
+    }
+    return execFileSync(command, ["auth", "print-access-token"], {
+      encoding: "utf8",
+    }).trim();
+  } catch (error) {
+    console.error(
+      `[budget] gcloud token command failed (platform=${process.platform}, ` +
+        `command=${command}). Verify that gcloud is installed, authenticated, ` +
+        "and available to the Node.js process.",
+      error,
+    );
+    throw error;
   }
-  return execFileSync(command, ["auth", "print-access-token"], {
-    encoding: "utf8",
-  }).trim();
 }
 
 async function readMonthlyApiUsage(
@@ -377,6 +380,7 @@ export async function logBudgetAtBoot(): Promise<void> {
     const cyan = "\x1b[36m";
     const green = "\x1b[32m";
     const yellow = "\x1b[33m";
+    console.log("");
     console.log(`${cyan}=== GOOGLE MAPS API LIMITS (${period}) ===${reset}`);
     console.log(
       `${green}Map Loads: ${mapLoads} / ${MAP_REQUEST_LIMIT} ` +
@@ -389,6 +393,7 @@ export async function logBudgetAtBoot(): Promise<void> {
     console.log(
       `${cyan}Player-games left: ${playerGamesLeft}${reset}`,
     );
+    console.log("");
   } catch (err) {
     if (
       (err as NodeJS.ErrnoException)?.code === "ENOENT" ||

@@ -73,6 +73,7 @@ export default function GameRoom(props: { code: string }) {
           <HidingPhase
             state={s}
             onHide={game.hide}
+            onValidateHide={game.validateHide}
             speakingIds={voice.speakingIds}
           />
         );

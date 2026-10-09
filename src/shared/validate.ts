@@ -97,6 +97,9 @@ export function sanitizeSettings(v: unknown): Partial<Settings> {
   if (typeof o.allowUnofficialCoverage === "boolean") {
     out.allowUnofficialCoverage = o.allowUnofficialCoverage;
   }
+  if (typeof o.selectedMap === "string" && o.selectedMap.length <= 80) {
+    out.selectedMap = o.selectedMap;
+  }
 
   return out;
 }

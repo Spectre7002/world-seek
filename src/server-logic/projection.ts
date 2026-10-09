@@ -17,6 +17,8 @@ import {
   soloTarget,
 } from "./transitions";
 import { DEFAULT_EMOJI } from "../shared/emojis";
+import { isAvailableMap, mapCatalog } from "./locations";
+import { getRegionBounds } from "./boundaries";
 
 const SOLO_TARGET = { id: "solo", name: "Mystery location", emoji: DEFAULT_EMOJI };
 
@@ -160,7 +162,7 @@ export function projectFor(room: Room, viewerId: string): PublicState {
             confirmed: false,
           });
         }
-        if (p.liveView && p.liveView.targetId === targetId && !confirmed) {
+        if (p.liveView && p.liveView.targetId === targetId) {
           liveViews.push({
             playerId: p.id,
             name: p.name,
@@ -197,12 +199,17 @@ export function projectFor(room: Room, viewerId: string): PublicState {
 
   const currentCycle = room.cycleCount || 1;
   const totalCycles = room.settings.multiplayerCycles || 5;
+  const selectedMap = isAvailableMap(room.settings.selectedMap)
+    ? room.settings.selectedMap
+    : "global";
 
   return {
     code: room.code,
     phase: room.phase,
     solo: solo,
     settings: room.settings,
+    maps: mapCatalog,
+    mapBounds: getRegionBounds(selectedMap),
     gameMasterId: room.gameMasterId,
     players: players,
 

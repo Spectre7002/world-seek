@@ -12,7 +12,7 @@ interface Props {
 const MEDALS = ["🥇", "🥈", "🥉"];
 
 export default function FinalScores(props: Props) {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const state = props.state;
   const onReturnToLobby = props.onReturnToLobby;
 
@@ -27,19 +27,15 @@ export default function FinalScores(props: Props) {
 
   let winnerText = "";
   if (state.solo) {
-    winnerText = language === "ru"
-      ? "Вы набрали " + topScore.toLocaleString() + " очков!"
-      : "You scored " + topScore.toLocaleString() + " points!";
+    winnerText = t("You scored {score} points").replace("{score}", topScore.toLocaleString());
   } else if (winners.length === 1) {
-    winnerText = language === "ru" ? "Победитель: " + winners[0].name + "!" : winners[0].name + " wins!";
+    winnerText = t("Winner: {name}").replace("{name}", winners[0].name);
   } else {
     const winnerNames = [];
     for (let i = 0; i < winners.length; i++) {
       winnerNames.push(winners[i].name);
     }
-    winnerText = language === "ru"
-      ? "Ничья: " + winnerNames.join(", ")
-      : "It's a tie: " + winnerNames.join(", ");
+    winnerText = t("It's a tie: {names}").replace("{names}", winnerNames.join(", "));
   }
 
   return (

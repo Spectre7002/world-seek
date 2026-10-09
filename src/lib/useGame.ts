@@ -219,6 +219,12 @@ export function useGame(code: string) {
     [dispatch],
   );
 
+  const validateHide = useCallback(function (
+    spot: HidingSpot,
+  ): Promise<{ ok: boolean; spot?: HidingSpot; reason?: string }> {
+    return emitAck("hide:validate", spot);
+  }, []);
+
   const guess = useCallback(
     function (at: LatLng) {
       dispatch("guess:confirm", at);
@@ -288,6 +294,7 @@ export function useGame(code: string) {
     peek: peek,
     start: start,
     hide: hide,
+    validateHide: validateHide,
     guess: guess,
     previewGuess: previewGuess,
     syncView: syncView,

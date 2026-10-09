@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import QRCode from "react-qr-code";
-import type { PublicState, Settings } from "@/shared/types";
+import type { MapId, PublicState, Settings } from "@/shared/types";
 import PlayerList from "./PlayerList";
 import LanguageSwitch from "./LanguageSwitch";
 import { useLanguage } from "@/lib/language";
+import MapSelector from "./MapSelector";
 
 interface Props {
   state: PublicState;
@@ -118,7 +119,7 @@ export default function Lobby(props: Props) {
   return (
     <>
       <div className="center-screen">
-        <div className="stack lobby-shell" style={{ width: 460, gap: 18 }}>
+        <div className="stack lobby-shell" style={{ width: "min(920px, calc(100vw - 32px))", gap: 18 }}>
           
           <div className="stack" style={{ gap: 8 }}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -168,6 +169,7 @@ export default function Lobby(props: Props) {
             <PlayerList players={state.players} speakingIds={speakingIds} />
           </div>
 
+          <div className="lobby-settings-grid">
           <div className="card stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className="eyebrow">{t("Match settings ⚙️")}</span>
@@ -264,7 +266,7 @@ export default function Lobby(props: Props) {
               )}
             </div>
 
-            <div className="setting-row">
+            {!isSolo && <div className="setting-row">
               <div className="setting-info">
                 <span className="setting-label">{t("Allow unofficial coverage")}</span>
                 <span className="setting-desc">
@@ -283,7 +285,23 @@ export default function Lobby(props: Props) {
                   ? t("Official and unofficial")
                   : t("Official only")}
               </button>
+            </div>}
+          </div>
+          <div className="card stack map-settings-card" style={{ gap: 12 }}>
+            <div className="row" style={{ justifyContent: "space-between" }}>
+              <div className="setting-info">
+                <span className="setting-label">{t("Map")}</span>
+                <span className="setting-desc">{t("Location pool for this game")}</span>
+              </div>
+              {!isGM && <span className="badge">{t("Host only")}</span>}
             </div>
+            <MapSelector
+              catalog={state.maps}
+              value={state.settings.selectedMap}
+              disabled={!isGM}
+              onChange={(mapId: MapId) => onUpdateSettings?.({ selectedMap: mapId })}
+            />
+          </div>
           </div>
 
           {isGM ? (

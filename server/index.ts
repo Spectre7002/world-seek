@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { registerHandlers } from "./handlers";
 import { sweepIdleRooms } from "../src/server-logic/store";
 import { budgetStatus, logBudgetAtBoot } from "../src/server-logic/budget";
+import { getNearestLocation } from "../src/server-logic/locations";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = parseInt(process.env.PORT || "3000", 10);
@@ -32,6 +33,23 @@ app.prepare().then(function () {
         "cache-control": "no-store",
       });
       res.end(JSON.stringify(budgetStatus()));
+      return;
+    }
+    if (req.method === "GET" && requestUrl.pathname === "/api/road-snap") {
+      const lat = Number(requestUrl.searchParams.get("lat"));
+      const lng = Number(requestUrl.searchParams.get("lng"));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+        lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        res.writeHead(400, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: "invalid_coordinates" }));
+        return;
+      }
+      const location = getNearestLocation(lat, lng, "global");
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(location ? { ok: true, location } : { ok: false, error: "not_found" }));
       return;
     }
     handle(req, res);

@@ -8,6 +8,7 @@ import { streetViewSource } from "@/lib/streetViewSource";
 
 export interface ResolvedPano extends LatLng {
   panoId: string;
+  arrowCount?: number;
 }
 
 export interface StreetViewCam {
@@ -28,12 +29,17 @@ const COMPASS_POINTS = [
   { label: "NW", bearing: 315 },
 ];
 
+const MAX_STREET_VIEW_SEARCH_RADIUS = 50000;
+const PEDESTRIAN_REGEX =
+  /park|trail|footpath|pedestrian|walkway|cycleway|bike path|hiking|plaza|square|парк|тропа|аллея|пешеходн|велодорожка|сквер|hotel|bistro|museum/i;
+
 interface Props {
   mode: "position" | "pano";
   position?: LatLng | null;
   panoId?: string | null;
   radius?: number;
   onPano?: (pano: ResolvedPano | null) => void;
+  onPanoError?: (reason: "not_official_road" | "none") => void;
   onView?: (view: StreetViewCam) => void;
   follow?: StreetViewCam | null;
   interactive?: boolean;
@@ -45,8 +51,12 @@ export default function StreetView(props: Props) {
   const mode = props.mode;
   const position = props.position;
   const panoId = props.panoId;
-  const radius = props.radius || 120;
+  const radius = Math.min(
+    MAX_STREET_VIEW_SEARCH_RADIUS,
+    Math.max(1, props.radius || 120)
+  );
   const onPano = props.onPano;
+  const onPanoError = props.onPanoError;
   const onView = props.onView;
   const follow = props.follow;
   const interactive = props.interactive !== false;
@@ -58,14 +68,18 @@ export default function StreetView(props: Props) {
   const prefetchRef = useRef<HTMLDivElement>(null);
   const panoRef = useRef<google.maps.StreetViewPanorama | null>(null);
   const prefetchPanoRef = useRef<google.maps.StreetViewPanorama | null>(null);
+
   const onPanoRef = useRef(onPano);
   onPanoRef.current = onPano;
   const onViewRef = useRef(onView);
   onViewRef.current = onView;
+  const onPanoErrorRef = useRef(onPanoError);
+  onPanoErrorRef.current = onPanoError;
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const interactiveRef = useRef(interactive);
   interactiveRef.current = interactive;
+
   const applyingFollow = useRef(false);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
@@ -79,10 +93,107 @@ export default function StreetView(props: Props) {
   const linksByPanoRef = useRef(new Map<string, google.maps.StreetViewLink[]>());
   const skippedHistoryPanoRef = useRef<string | null>(null);
   const programmaticPanosRef = useRef(new Set<string>());
+
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
   const [panoHistory, setPanoHistory] = useState<string[]>([]);
   const { t } = useLanguage();
+
+  async function hybridRoadSnap(
+    clickPosition: LatLng,
+    panorama: google.maps.StreetViewPanorama,
+    active: () => boolean,
+    sv: google.maps.StreetViewService
+  ): Promise<void> {
+    // 1. СНАЧАЛА ИЩЕМ ТОЧНУЮ УЛИЦУ ВОЗЛЕ КЛИКА ЧЕРЕЗ GOOGLE API (радиус 500м)
+    sv.getPanorama(
+      {
+        location: clickPosition,
+        radius: 500,
+        preference: google.maps.StreetViewPreference.NEAREST,
+        source: streetViewSource(
+          google.maps.StreetViewSource,
+          allowUnofficialCoverage
+        ),
+      },
+      async (data, status) => {
+        if (!active()) return;
+
+        if (
+          status === google.maps.StreetViewStatus.OK &&
+          data &&
+          data.location?.pano
+        ) {
+          const links = (data.links || []).filter(
+            (l) => !!l && l.pano !== null && l.heading !== null
+          );
+          const description = data.location.description || "";
+          const isPedestrian = PEDESTRIAN_REGEX.test(description);
+
+          // Проверяем: минимуму 2 стрелки (автодорога) и отсутствие пешеходных стоп-слов
+          if ((allowUnofficialCoverage || links.length >= 2) && !isPedestrian) {
+            const foundPanoId = data.location.pano;
+            const foundLat = data.location.latLng
+              ? data.location.latLng.lat()
+              : clickPosition.lat;
+            const foundLng = data.location.latLng
+              ? data.location.latLng.lng()
+              : clickPosition.lng;
+
+            panorama.setPano(foundPanoId);
+            onPanoRef.current?.({
+              panoId: foundPanoId,
+              lat: foundLat,
+              lng: foundLng,
+              arrowCount: links.length,
+            });
+            return;
+          }
+        }
+
+        // 2. ЕСЛИ В РАДИУСЕ 500М НЕТ АВТОДОРОГ GOOGLE (ОКЕАН / ГЛУШЬ) — ФОЛЛБЕК НА VALI
+        try {
+          const response = await fetch(
+            `/api/road-snap?lat=${encodeURIComponent(
+              clickPosition.lat
+            )}&lng=${encodeURIComponent(clickPosition.lng)}`
+          );
+          if (!response.ok)
+            throw new Error(`road snap returned ${response.status}`);
+          const result = (await response.json()) as {
+            ok: boolean;
+            location?: {
+              lat: number;
+              lng: number;
+              panoId: string;
+              heading: number;
+            };
+          };
+
+          const location = result.location;
+          if (!active() || !result.ok || !location) {
+            onPanoErrorRef.current?.("none");
+            onPanoRef.current?.(null);
+            return;
+          }
+
+          panorama.setPano(location.panoId);
+          onPanoRef.current?.({
+            lat: location.lat,
+            lng: location.lng,
+            panoId: location.panoId,
+            arrowCount: 2,
+          });
+        } catch (error) {
+          console.error("[street-view] Vali fallback failed", error);
+          if (active()) {
+            onPanoErrorRef.current?.("none");
+            onPanoRef.current?.(null);
+          }
+        }
+      }
+    );
+  }
 
   const onPanoChanged = useRef(function (panoId: string) {
     if (skippedHistoryPanoRef.current === panoId) {
@@ -90,7 +201,8 @@ export default function StreetView(props: Props) {
       return;
     }
     if (pendingHistoryPanoRef.current === panoId) {
-      historyIndexRef.current = pendingHistoryIndexRef.current ?? historyIndexRef.current;
+      historyIndexRef.current =
+        pendingHistoryIndexRef.current ?? historyIndexRef.current;
       pendingHistoryPanoRef.current = null;
       pendingHistoryIndexRef.current = null;
       return;
@@ -104,29 +216,37 @@ export default function StreetView(props: Props) {
     setPanoHistory(nextHistory);
   });
 
-  useEffect(
-    function () {
-      let cancelled = false;
-      let clearListeners: (() => void) | null = null;
+  useEffect(function () {
+    let cancelled = false;
+    let clearListeners: (() => void) | null = null;
 
-      loadGoogleMaps().then(function (google) {
-        if (cancelled || !ref.current || !prefetchRef.current || panoRef.current) return;
+    loadGoogleMaps().then(function (google) {
+      if (
+        cancelled ||
+        !ref.current ||
+        !prefetchRef.current ||
+        panoRef.current
+      )
+        return;
 
-        const pano = new google.maps.StreetViewPanorama(ref.current, {
-          visible: true,
-          addressControl: false,
-          showRoadLabels: false,
-          fullscreenControl: false,
-          motionTracking: false,
-          motionTrackingControl: false,
-          panControl: false,
-          linksControl: interactive,
-          clickToGo: interactive,
-          zoomControl: interactive,
-          scrollwheel: interactive,
-          disableDefaultUI: !interactive,
-        });
-        const prefetchPano = new google.maps.StreetViewPanorama(prefetchRef.current, {
+      const pano = new google.maps.StreetViewPanorama(ref.current, {
+        visible: true,
+        addressControl: false,
+        showRoadLabels: false,
+        fullscreenControl: false,
+        motionTracking: false,
+        motionTrackingControl: false,
+        panControl: false,
+        linksControl: interactive,
+        clickToGo: interactive,
+        zoomControl: interactive,
+        scrollwheel: interactive,
+        disableDefaultUI: !interactive,
+      });
+
+      const prefetchPano = new google.maps.StreetViewPanorama(
+        prefetchRef.current,
+        {
           visible: true,
           addressControl: false,
           showRoadLabels: false,
@@ -139,78 +259,78 @@ export default function StreetView(props: Props) {
           zoomControl: false,
           scrollwheel: false,
           disableDefaultUI: true,
-        });
-        clearListeners = function () {
-          google.maps.event.clearInstanceListeners(pano);
-          google.maps.event.clearInstanceListeners(prefetchPano);
-        };
+        }
+      );
 
-        pano.addListener("position_changed", function () {
-          const position = pano.getPosition();
-          lastPositionRef.current = position;
-          const currentPano = pano.getPano();
-          if (position && currentPano) {
-            positionsByPanoRef.current.set(currentPano, position);
-          }
-          if (modeRef.current === "position") {
-            const id = pano.getPano();
-            const pos = position;
-            if (id && pos && onPanoRef.current) {
-              onPanoRef.current({
-                panoId: id,
-                lat: pos.lat(),
-                lng: pos.lng(),
-              });
-            }
-          }
-          emitView(pano);
-        });
+      clearListeners = function () {
+        google.maps.event.clearInstanceListeners(pano);
+        google.maps.event.clearInstanceListeners(prefetchPano);
+      };
 
-        pano.addListener("pano_changed", function () {
+      pano.addListener("position_changed", function () {
+        const position = pano.getPosition();
+        lastPositionRef.current = position;
+        const currentPano = pano.getPano();
+        if (position && currentPano) {
+          positionsByPanoRef.current.set(currentPano, position);
+        }
+        if (modeRef.current === "position") {
           const id = pano.getPano();
-          if (id) {
-            programmaticPanosRef.current.delete(id);
-            lastPanoRef.current = id;
-            onPanoChanged.current(id);
+          const pos = position;
+          if (id && pos && onPanoRef.current) {
+            onPanoRef.current({
+              panoId: id,
+              lat: pos.lat(),
+              lng: pos.lng(),
+            });
           }
-        });
-
-        pano.addListener("links_changed", function () {
-          const links = (pano.getLinks() || []).filter(function (
-            link
-          ): link is google.maps.StreetViewLink {
-            return !!link && link.pano !== null && link.heading !== null;
-          });
-          linksRef.current = links;
-          const currentPano = pano.getPano();
-          if (currentPano) linksByPanoRef.current.set(currentPano, links);
-          prefetchNextPano(prefetchPano, links, pano.getPov().heading);
-        });
-
-        pano.addListener("pov_changed", function () {
-          const pov = pano.getPov();
-          if (pov) setHeading(pov.heading);
-          emitView(pano);
-        });
-
-        pano.addListener("zoom_changed", function () {
-          emitView(pano);
-        });
-
-        panoRef.current = pano;
-        prefetchPanoRef.current = prefetchPano;
-        setReady(true);
+        }
+        emitView(pano);
       });
 
-      return function () {
-        cancelled = true;
-        if (clearListeners) clearListeners();
-        panoRef.current = null;
-        prefetchPanoRef.current = null;
-      };
-    },
-    []
-  );
+      pano.addListener("pano_changed", function () {
+        const id = pano.getPano();
+        if (id) {
+          programmaticPanosRef.current.delete(id);
+          lastPanoRef.current = id;
+          onPanoChanged.current(id);
+        }
+      });
+
+      pano.addListener("links_changed", function () {
+        const links = (pano.getLinks() || []).filter(function (
+          link
+        ): link is google.maps.StreetViewLink {
+          return !!link && link.pano !== null && link.heading !== null;
+        });
+        linksRef.current = links;
+        const currentPano = pano.getPano();
+        if (currentPano) linksByPanoRef.current.set(currentPano, links);
+        prefetchNextPano(prefetchPano, links, pano.getPov().heading);
+      });
+
+      pano.addListener("pov_changed", function () {
+        const pov = pano.getPov();
+        if (pov) setHeading(pov.heading);
+        emitView(pano);
+      });
+
+      pano.addListener("zoom_changed", function () {
+        emitView(pano);
+      });
+
+      panoRef.current = pano;
+      prefetchPanoRef.current = prefetchPano;
+      setReady(true);
+    });
+
+    return function () {
+      cancelled = true;
+      if (clearListeners) clearListeners();
+      panoRef.current = null;
+      prefetchPanoRef.current = null;
+    };
+  }, []);
 
   useEffect(
     function () {
@@ -268,56 +388,20 @@ export default function StreetView(props: Props) {
       let active = true;
       const sv = new google.maps.StreetViewService();
 
-      sv.getPanorama(
-        {
-          location: position,
-          radius: radius,
-          preference: google.maps.StreetViewPreference.NEAREST,
-          source: streetViewSource(
-            google.maps.StreetViewSource,
-            allowUnofficialCoverage,
-          ),
-        },
-        function (data, status) {
-          if (!active) return;
-
-          if (
-            status === google.maps.StreetViewStatus.OK &&
-            data &&
-            data.location &&
-            data.location.pano &&
-            panoRef.current
-          ) {
-            const foundPanoId = data.location.pano;
-            const foundLat = data.location.latLng
-              ? data.location.latLng.lat()
-              : position.lat;
-            const foundLng = data.location.latLng
-              ? data.location.latLng.lng()
-              : position.lng;
-
-            panoRef.current.setPano(foundPanoId);
-
-            if (onPanoRef.current) {
-              onPanoRef.current({
-                panoId: foundPanoId,
-                lat: foundLat,
-                lng: foundLng,
-              });
-            }
-          } else {
-            if (onPanoRef.current) {
-              onPanoRef.current(null);
-            }
-          }
-        }
-      );
+      hybridRoadSnap(position, panoRef.current, () => active, sv);
 
       return function () {
         active = false;
       };
     },
-    [ready, mode, position?.lat, position?.lng, radius, allowUnofficialCoverage]
+    [
+      ready,
+      mode,
+      position?.lat,
+      position?.lng,
+      radius,
+      allowUnofficialCoverage,
+    ]
   );
 
   function navigateToHistory(index: number) {
@@ -335,13 +419,15 @@ export default function StreetView(props: Props) {
   function prefetchNextPano(
     prefetchPano: google.maps.StreetViewPanorama,
     links: google.maps.StreetViewLink[],
-    viewHeading: number,
+    viewHeading: number
   ) {
     let nextLink: google.maps.StreetViewLink | null = null;
     let closestDelta = Infinity;
     for (const link of links) {
       if (link.pano === null || link.heading === null) continue;
-      const delta = Math.abs((((link.heading - viewHeading + 540) % 360) - 180));
+      const delta = Math.abs(
+        (((link.heading - viewHeading + 540) % 360) - 180)
+      );
       if (delta < closestDelta) {
         closestDelta = delta;
         nextLink = link;
@@ -359,7 +445,8 @@ export default function StreetView(props: Props) {
   }
 
   function goBack() {
-    if (historyIndexRef.current > 0) navigateToHistory(historyIndexRef.current - 1);
+    if (historyIndexRef.current > 0)
+      navigateToHistory(historyIndexRef.current - 1);
   }
 
   function emitView(pano: google.maps.StreetViewPanorama) {
@@ -382,11 +469,23 @@ export default function StreetView(props: Props) {
       ref={wrapRef}
       style={{ position: "relative", width: "100%", height: "100%" }}
       className={className}
+      onClickCapture={function (event) {
+        const target = event.target;
+        if (target instanceof HTMLElement && target.closest("a")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
     >
       <div
         ref={ref}
         className="street-view-canvas"
-        style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+        }}
       />
       <div
         ref={prefetchRef}
@@ -419,18 +518,32 @@ export default function StreetView(props: Props) {
       <div className="sv-topbar">
         {interactive && (
           <div className="sv-navigation">
-            <button type="button" onClick={returnToStart} disabled={panoHistory.length === 0}>
+            <button
+              type="button"
+              onClick={returnToStart}
+              disabled={panoHistory.length === 0}
+            >
               {t("Back to start")}
             </button>
-            <button type="button" onClick={goBack} disabled={historyIndexRef.current <= 0}>
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={historyIndexRef.current <= 0}
+            >
               {t("Back")}
             </button>
           </div>
         )}
       </div>
-      <div className="sv-compass-dial" aria-label={`Heading ${Math.round(heading)} degrees`}>
+      <div
+        className="sv-compass-dial"
+        aria-label={`Heading ${Math.round(heading)} degrees`}
+      >
         <div className="sv-compass" aria-hidden="true">
-          <div className="sv-compass-rose" style={{ transform: "rotate(" + -heading + "deg)" }}>
+          <div
+            className="sv-compass-rose"
+            style={{ transform: "rotate(" + -heading + "deg)" }}
+          >
             <span className="sv-compass-n">N</span>
             <span className="sv-compass-e">E</span>
             <span className="sv-compass-s">S</span>
