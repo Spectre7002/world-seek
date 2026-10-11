@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+out/
+.next/
+maps/
+*.json
+*.geojson
+*.map
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.ico
+*.mp3
+*.wav

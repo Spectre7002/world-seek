@@ -48,6 +48,8 @@ interface Props {
   resetViewKey?: string | number;
   className?: string;
   restriction?: RegionBounds | null;
+  /** Объект подсказки, полученный с сервера после прокрутки кейса */
+  caseHint?: any;
 }
 
 export default function MapPicker({
@@ -62,6 +64,7 @@ export default function MapPicker({
   resetViewKey,
   className,
   restriction,
+  caseHint,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -71,6 +74,7 @@ export default function MapPicker({
   const keyedRef = useRef<Map<string, ImageMarker | google.maps.Marker>>(new Map());
   const linesRef = useRef<google.maps.Polyline[]>([]);
   const coverageRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
+  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker>>([]); // Сохраняем отрисовки от кейсов
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onDragRef = useRef(onDrag);
@@ -147,6 +151,65 @@ export default function MapPicker({
     mapRef.current.setCenter(DEFAULT_CENTER);
     mapRef.current.setZoom(DEFAULT_ZOOM);
   }, [ready, resetViewKey]);
+
+  // --- Отрисовка подсказок из кейсов ---
+  useEffect(() => {
+    if (!ready || !mapRef.current || typeof google === "undefined") return;
+    
+    // Очищаем старые фигуры
+    caseShapesRef.current.forEach(shape => shape.setMap(null));
+    caseShapesRef.current = [];
+
+    if (caseHint) {
+      const map = mapRef.current;
+      const themeColor = caseHint.tierColor || "#eb4b4b";
+
+      // Если выпал круг (радиус поиска)
+      if (caseHint.circle) {
+        const circle = new google.maps.Circle({
+          map,
+          center: caseHint.circle.center,
+          radius: caseHint.circle.radiusMeters,
+          fillColor: themeColor,
+          fillOpacity: 0.15,
+          strokeColor: themeColor,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          clickable: false
+        });
+        caseShapesRef.current.push(circle);
+      }
+// Если выпала полоса (широта/долгота) из Чит-меню
+      if (caseHint.band) {
+        const bounds = caseHint.band.axis === "lat"
+           ? { north: caseHint.band.max, south: caseHint.band.min, east: 180, west: -180 }
+           : { north: 90, south: -90, east: caseHint.band.max, west: caseHint.band.min };
+        const rect = new google.maps.Rectangle({
+          map, bounds, fillColor: themeColor, fillOpacity: 0.15, strokeColor: themeColor, strokeOpacity: 0.8, strokeWeight: 2, clickable: false
+        });
+        caseShapesRef.current.push(rect);
+      }
+      // Если выпала подсказка Special (точные координаты)
+
+      if (caseHint.exact) {
+        const exactMarker = new google.maps.Marker({
+          map,
+          position: caseHint.exact,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 8,
+            fillColor: themeColor,
+            fillOpacity: 1,
+            strokeColor: "#000",
+            strokeWeight: 2,
+          },
+          title: "Точная цель (5K)",
+          zIndex: 500
+        });
+        caseShapesRef.current.push(exactMarker);
+      }
+    }
+  }, [ready, caseHint]);
 
   // --- sync the user's draggable pin (their emoji when markerIcon is set) ---
   useEffect(() => {

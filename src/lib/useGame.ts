@@ -276,13 +276,16 @@ export function useGame(code: string) {
     [code, router],
   );
 
-  // Новый метод для смены настроек
   const updateSettings = useCallback(
     function (settings: Partial<PublicState["settings"]>) {
       dispatch("game:settings", { settings: settings });
     },
     [dispatch],
   );
+
+  const openCase = useCallback(function (): Promise<{ ok: boolean; hint?: any }> {
+    return emitAck("case:open", {});
+  }, []);
 
   return {
     state: state,
@@ -303,5 +306,6 @@ export function useGame(code: string) {
     leave: leave,
     close: close,
     updateSettings: updateSettings,
+    openCase: openCase,
   };
 }

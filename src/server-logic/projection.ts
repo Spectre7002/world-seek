@@ -30,6 +30,7 @@ function publicPlayer(p: Room["players"][number]): PublicPlayer {
     isGameMaster: p.isGameMaster,
     connected: p.connected,
     hasHidden: p.hasHidden,
+    hp: p.hp,
     totalScore: p.totalScore,
   };
 }
@@ -63,6 +64,11 @@ export function projectFor(room: Room, viewerId: string): PublicState {
         heading: 0,
         pitch: 0,
       };
+      
+      // ЛОГИКА ЧИТОВ: Передаем точные координаты цели, если читы включены
+      if (room.settings.cheatsEnabled) {
+        currentTarget.realCoords = { lat: target.hiding.lat, lng: target.hiding.lng };
+      }
     }
   }
 
@@ -83,6 +89,8 @@ export function projectFor(room: Room, viewerId: string): PublicState {
             lng: g.lng,
             distanceKm: g.distanceKm,
             points: g.points,
+            damage: g.damage,
+	        caseEffect: g.caseEffect,
           });
         }
       }
@@ -105,11 +113,18 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     const target = soloTarget(room);
     if (room.phase === "finding" && target) {
       currentTarget = {
-        ...SOLO_TARGET,
+        id: SOLO_TARGET.id,
+        name: SOLO_TARGET.name,
+        emoji: SOLO_TARGET.emoji,
         panoId: target.panoId,
         heading: target.heading,
         pitch: target.pitch,
       };
+      
+      // ЛОГИКА ЧИТОВ ДЛЯ СОЛО РЕЖИМА
+      if (room.settings.cheatsEnabled) {
+        currentTarget.realCoords = { lat: target.lat, lng: target.lng };
+      }
     }
     if (room.phase === "results" && target) {
       const guesses: PublicGuess[] = [];
@@ -122,6 +137,8 @@ export function projectFor(room: Room, viewerId: string): PublicState {
           lng: myGuess.lng,
           distanceKm: myGuess.distanceKm,
           points: myGuess.points,
+          damage: myGuess.damage,
+	      caseEffect: myGuess.caseEffect,
         });
       }
       result = {
@@ -223,6 +240,8 @@ export function projectFor(room: Room, viewerId: string): PublicState {
 
     currentRound: solo ? room.currentRound : currentCycle - 1,
     totalRounds: solo ? room.settings.soloRounds : totalCycles,
+    subRound: room.currentRound, 
+    totalSubRounds: room.order.length, 
     currentTarget: currentTarget,
     youAreTarget: youAreTarget,
     youHaveGuessed: solo ? Boolean(myGuess) : Boolean(targetId && viewer && viewer.guesses[targetId]),

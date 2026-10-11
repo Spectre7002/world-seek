@@ -53,6 +53,7 @@ function newPlayer(name: string, isGameMaster: boolean, emoji?: string): Player 
     livePin: null,
     liveView: null,
     totalScore: 0,
+hp: 10000,
   };
 }
 
@@ -176,6 +177,7 @@ export function startGame(room: Room): boolean {
     p.guesses = {};
     p.livePin = null;
     p.liveView = null;
+p.hp = 10000;
     p.totalScore = 0;
   }
   return true;
@@ -230,8 +232,18 @@ export function recordGuess(room: Room, guesserId: string, at: LatLng): boolean 
   if (!guesser || !target || !target.hiding) return false;
 
   const distanceKm = haversineKm(at, target.hiding);
-  const points = computeScore(distanceKm, room.settings);
-  guesser.guesses[targetId] = { lat: at.lat, lng: at.lng, distanceKm: distanceKm, points: points };
+  let points = computeScore(distanceKm, room.settings);
+  let damage = 0;
+
+  // Логика урона для режима HP
+  if (room.settings.gameMode === "hp") {
+    let rawDamage = room.settings.maxPoints - points;
+    // Масштабирование: если игроков 3-4, урон снижается, чтобы раунд не закончился моментально
+    const dmgMultiplier = room.players.length >= 3 ? 0.6 : 1.0; 
+    damage = Math.floor(rawDamage * dmgMultiplier);
+  }
+
+  guesser.guesses[targetId] = { lat: at.lat, lng: at.lng, distanceKm: distanceKm, points: points, damage: damage };
   guesser.livePin = null;
   return true;
 }
@@ -301,7 +313,12 @@ export function scoreRound(room: Room): boolean {
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
     const g = p.guesses[targetId];
-    if (g) p.totalScore += g.points;
+    if (g) {
+      p.totalScore += g.points;
+      if (room.settings.gameMode === "hp") {
+        p.hp = Math.max(0, p.hp - (g.damage || 0));
+      }
+    }
   }
   room.phase = "results";
   return true;
@@ -356,6 +373,7 @@ export function returnToLobby(room: Room): boolean {
     p.livePin = null;
     p.liveView = null;
     p.totalScore = 0;
+p.hp = 10000;
   }
   return true;
 }
@@ -380,6 +398,7 @@ export function startSolo(room: Room): boolean {
     p.livePin = null;
     p.liveView = null;
     p.totalScore = 0;
+p.hp = 10000;
   }
   return true;
 }
@@ -395,9 +414,16 @@ export function recordSoloGuess(room: Room, playerId: string, at: LatLng): boole
   if (!target) return false;
   const player = findPlayer(room, playerId);
   if (!player) return false;
+  
   const distanceKm = haversineKm(at, target);
   const points = computeScore(distanceKm, room.settings);
-  player.guesses[soloTargetKey(room.currentRound)] = { lat: at.lat, lng: at.lng, distanceKm: distanceKm, points: points };
+
+  player.guesses[soloTargetKey(room.currentRound)] = {
+    lat: at.lat,
+    lng: at.lng,
+    distanceKm: distanceKm,
+    points: points,
+  };
   return true;
 }
 

@@ -84,6 +84,7 @@ export default function GameRoom(props: { code: string }) {
             onGuess={game.guess}
             onPreview={game.previewGuess}
             onView={game.syncView}
+	    onOpenCase={game.openCase}
           />
         );
       case "results":

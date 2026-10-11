@@ -70,9 +70,29 @@ export default function Lobby(props: Props) {
   }
 
   function toggleUnofficialCoverage() {
-    onUpdateSettings?.({
-      allowUnofficialCoverage: !state.settings.allowUnofficialCoverage,
-    });
+    if (onUpdateSettings) {
+      onUpdateSettings({
+        allowUnofficialCoverage: !state.settings.allowUnofficialCoverage,
+      });
+    }
+  }
+
+  function toggleCheats() {
+    if (onUpdateSettings) {
+      onUpdateSettings({ cheatsEnabled: !state.settings.cheatsEnabled });
+    }
+  }
+
+  function toggleCase() {
+    if (onUpdateSettings) {
+      onUpdateSettings({ caseEnabled: !state.settings.caseEnabled });
+    }
+  }
+
+  function toggleGameMode() {
+    if (onUpdateSettings) {
+      onUpdateSettings({ gameMode: state.settings.gameMode === "hp" ? "classic" : "hp" });
+    }
   }
 
   function handleDecRounds() {
@@ -126,7 +146,7 @@ export default function Lobby(props: Props) {
               <h1 className="title">{t("Game lobby")}</h1>
               <LanguageSwitch />
               <span className="badge good">
-                {isSolo ? t("Solo mode") : t("Multiplayer")}
+                {isSolo ? t("Solo mode") : state.settings.is1v1 ? "1v1 Дуэль" : t("Multiplayer")}
               </span>
             </div>
 
@@ -163,151 +183,231 @@ export default function Lobby(props: Props) {
             <div className="row" style={{ justifyContent: "space-between" }}>
               <span className="eyebrow">{t("Players")} ({state.players.length})</span>
               <span className="muted" style={{ fontSize: 13 }}>
-                {state.players.length}/10 {t("participants")}
+                {state.players.length}/{state.settings.is1v1 ? 2 : 10} {t("participants")}
               </span>
             </div>
             <PlayerList players={state.players} speakingIds={speakingIds} />
           </div>
 
           <div className="lobby-settings-grid">
-          <div className="card stack" style={{ gap: 12 }}>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="eyebrow">{t("Match settings ⚙️")}</span>
-              {!isGM && <span className="badge">{t("Host only")}</span>}
-            </div>
-
-            <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">{t("Number of rounds")}</span>
-                <span className="setting-desc">{t("Hide-and-seek cycles per game")}</span>
+            
+            {/* ЛЕВАЯ КОЛОНКА: Основные настройки матча */}
+            <div className="card stack" style={{ gap: 20 }}>
+              <div className="row" style={{ justifyContent: "space-between" }}>
+                <span className="eyebrow">{t("Match settings ⚙️")}</span>
+                {!isGM && <span className="badge">{t("Host only")}</span>}
               </div>
-              {isGM ? (
-                <div className="stepper-control">
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">{t("Number of rounds")}</span>
+                  <span className="setting-desc">{t("Hide-and-seek cycles per game")}</span>
+                </div>
+                {isGM ? (
+                  <div className="stepper-control" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleDecRounds}
+                      disabled={currentRoundsVal <= 1}
+                    >
+                      -
+                    </button>
+                    <span className="stepper-val">{currentRoundsVal}</span>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleIncRounds}
+                      disabled={currentRoundsVal >= 10}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <span className="setting-value-static" style={{ marginTop: 12 }}>{currentRoundsVal} {t("rounds")}</span>
+                )}
+              </div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">{t("Hiding timer")}</span>
+                  <span className="setting-desc">{t("Time to choose a spot")}</span>
+                </div>
+                {isGM ? (
+                  <div className="stepper-control" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleDecHiding}
+                      disabled={hidingTimeVal <= 0}
+                    >
+                      -
+                    </button>
+                    <span className="stepper-val-text">{formatTime(hidingTimeVal)}</span>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleIncHiding}
+                      disabled={hidingTimeVal >= 300}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <span className="setting-value-static" style={{ marginTop: 12 }}>{formatTime(hidingTimeVal)}</span>
+                )}
+              </div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">{t("Finding timer")}</span>
+                  <span className="setting-desc">{t("Time to make a guess")}</span>
+                </div>
+                {isGM ? (
+                  <div className="stepper-control" style={{ marginTop: 12 }}>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleDecFinding}
+                      disabled={findingTimeVal <= 0}
+                    >
+                      -
+                    </button>
+                    <span className="stepper-val-text">{formatTime(findingTimeVal)}</span>
+                    <button
+                      type="button"
+                      className="stepper-btn"
+                      onClick={handleIncFinding}
+                      disabled={findingTimeVal >= 300}
+                    >
+                      +
+                    </button>
+                  </div>
+                ) : (
+                  <span className="setting-value-static" style={{ marginTop: 12 }}>{formatTime(findingTimeVal)}</span>
+                )}
+              </div>
+
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">Режим Игры</span>
+                  <span className="setting-desc">Classic (Очки) / HP Mode (Здоровье)</span>
+                </div>
+                <button
+                  type="button"
+                  className={`coverage-toggle${state.settings.gameMode === "hp" ? " is-on" : ""}`}
+                  role="switch"
+                  disabled={!isGM}
+                  style={{ marginTop: 12 }}
+                  onClick={toggleGameMode}
+                >
+                  {state.settings.gameMode === "hp" ? "HP Mode 🩸" : "Classic 🏆"}
+                </button>
+              </div>
+
+              {!isSolo && <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">{t("Allow unofficial coverage")}</span>
+                  <span className="setting-desc">
+                    {t("Buildings and unofficial photospheres for hiding spots")}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`coverage-toggle${state.settings.allowUnofficialCoverage ? " is-on" : ""}`}
+                  role="switch"
+                  aria-checked={state.settings.allowUnofficialCoverage}
+                  disabled={!isGM}
+                  style={{ marginTop: 12 }}
+                  onClick={toggleUnofficialCoverage}
+                >
+                  {state.settings.allowUnofficialCoverage
+                    ? t("Official and unofficial")
+                    : t("Official only")}
+                </button>
+              </div>}
+            </div>
+            
+            {/* ПРАВАЯ КОЛОНКА: Карта и Дополнительные фишки */}
+            <div className="stack" style={{ gap: 16, alignSelf: "flex-start" }}>
+              <div className="card stack map-settings-card" style={{ gap: 20 }}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <div className="setting-info">
+                    <span className="setting-label">{t("Map")}</span>
+                    <span className="setting-desc">{t("Location pool for this game")}</span>
+                  </div>
+                  {!isGM && <span className="badge">{t("Host only")}</span>}
+                </div>
+                <div style={{ marginTop: 4 }}>
+                  <MapSelector
+                    catalog={state.maps}
+                    value={state.settings.selectedMap}
+                    disabled={!isGM}
+                    onChange={function (mapId: MapId) {
+                      if (onUpdateSettings) onUpdateSettings({ selectedMap: mapId });
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="card stack" style={{ gap: 20 }}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="eyebrow">Дополнительно 🌟</span>
+                  {!isGM && <span className="badge">{t("Host only")}</span>}
+                </div>
+
+                <div className="setting-row">
+                  <div className="setting-info">
+                    <span className="setting-label">Разрешить Читы 🔮</span>
+                    <span className="setting-desc">Открывает меню настройки сдвига и радиуса цели</span>
+                  </div>
                   <button
                     type="button"
-                    className="stepper-btn"
-                    onClick={handleDecRounds}
-                    disabled={currentRoundsVal <= 1}
+                    className={`coverage-toggle${state.settings.cheatsEnabled ? " is-on" : ""}`}
+                    role="switch"
+                    disabled={!isGM}
+                    style={{ marginTop: 12 }}
+                    onClick={toggleCheats}
                   >
-                    -
-                  </button>
-                  <span className="stepper-val">{currentRoundsVal}</span>
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={handleIncRounds}
-                    disabled={currentRoundsVal >= 10}
-                  >
-                    +
+                    {state.settings.cheatsEnabled ? "Вкл" : "Выкл"}
                   </button>
                 </div>
-              ) : (
-                <span className="setting-value-static">{currentRoundsVal} {t("rounds")}</span>
-              )}
-            </div>
 
-            <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">{t("Hiding timer")}</span>
-                <span className="setting-desc">{t("Time to choose a spot")}</span>
-              </div>
-              {isGM ? (
-                <div className="stepper-control">
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={handleDecHiding}
-                    disabled={hidingTimeVal <= 0}
-                  >
-                    -
-                  </button>
-                  <span className="stepper-val-text">{formatTime(hidingTimeVal)}</span>
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={handleIncHiding}
-                    disabled={hidingTimeVal >= 300}
-                  >
-                    +
-                  </button>
+                <div className="setting-row">
+                  <div className="setting-info">
+                    <span className="setting-label">Специальный Кейс 🎁</span>
+                    <span className="setting-desc">Случайные награды / Шансы</span>
+                  </div>
+                  <div className="row" style={{ gap: 10, alignItems: "center", marginTop: 12 }}>
+                    <select
+                      value={state.settings.caseOddsMode}
+                      onChange={(e) => onUpdateSettings && onUpdateSettings({ caseOddsMode: e.target.value as any })}
+                      disabled={!isGM}
+                      style={{ padding: "6px 10px", background: "var(--bg-elev-2)", color: "#fff", borderRadius: 4, border: "1px solid var(--border-color)", cursor: "pointer" }}
+                    >
+                      <option value="standard">Standard</option>
+                      <option value="better_odds">Better</option>
+                    </select>
+                    <button
+                      type="button"
+                      className={`coverage-toggle${state.settings.caseEnabled ? " is-on" : ""}`}
+                      role="switch"
+                      disabled={!isGM}
+                      onClick={toggleCase}
+                    >
+                      {state.settings.caseEnabled ? "Вкл" : "Выкл"}
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <span className="setting-value-static">{formatTime(hidingTimeVal)}</span>
-              )}
-            </div>
-
-            <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">{t("Finding timer")}</span>
-                <span className="setting-desc">{t("Time to make a guess")}</span>
               </div>
-              {isGM ? (
-                <div className="stepper-control">
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={handleDecFinding}
-                    disabled={findingTimeVal <= 0}
-                  >
-                    -
-                  </button>
-                  <span className="stepper-val-text">{formatTime(findingTimeVal)}</span>
-                  <button
-                    type="button"
-                    className="stepper-btn"
-                    onClick={handleIncFinding}
-                    disabled={findingTimeVal >= 300}
-                  >
-                    +
-                  </button>
-                </div>
-              ) : (
-                <span className="setting-value-static">{formatTime(findingTimeVal)}</span>
-              )}
             </div>
-
-            {!isSolo && <div className="setting-row">
-              <div className="setting-info">
-                <span className="setting-label">{t("Allow unofficial coverage")}</span>
-                <span className="setting-desc">
-                  {t("Buildings and unofficial photospheres for hiding spots")}
-                </span>
-              </div>
-              <button
-                type="button"
-                className={`coverage-toggle${state.settings.allowUnofficialCoverage ? " is-on" : ""}`}
-                role="switch"
-                aria-checked={state.settings.allowUnofficialCoverage}
-                disabled={!isGM}
-                onClick={toggleUnofficialCoverage}
-              >
-                {state.settings.allowUnofficialCoverage
-                  ? t("Official and unofficial")
-                  : t("Official only")}
-              </button>
-            </div>}
-          </div>
-          <div className="card stack map-settings-card" style={{ gap: 12 }}>
-            <div className="row" style={{ justifyContent: "space-between" }}>
-              <div className="setting-info">
-                <span className="setting-label">{t("Map")}</span>
-                <span className="setting-desc">{t("Location pool for this game")}</span>
-              </div>
-              {!isGM && <span className="badge">{t("Host only")}</span>}
-            </div>
-            <MapSelector
-              catalog={state.maps}
-              value={state.settings.selectedMap}
-              disabled={!isGM}
-              onChange={(mapId: MapId) => onUpdateSettings?.({ selectedMap: mapId })}
-            />
-          </div>
+            
           </div>
 
           {isGM ? (
             <div className="card stack lobby-start-card" style={{ gap: 10 }}>
               <button type="button" className="btn-primary-large" onClick={onStart}>
-                {isSolo ? t("Play solo") : t("Start game")}
+                {state.settings.is1v1 ? "Start 1v1 Duel" : isSolo ? t("Play solo") : t("Start game")}
               </button>
               {isSolo && (
                 <p className="muted" style={{ margin: 0, fontSize: 13, textAlign: "center" }}>

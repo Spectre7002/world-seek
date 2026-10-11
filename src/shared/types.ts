@@ -22,8 +22,24 @@ export interface Settings {
   /** Whether hiding spots may use community and photosphere imagery. */
   allowUnofficialCoverage: boolean;
   selectedMap: string;
+  
+  // Добавленные параметры
+  cheatsEnabled: boolean;
+  caseEnabled: boolean;
+  caseOddsMode: CaseMode;
+  gameMode: "classic" | "hp";
 }
+export type CaseMode = "standard" | "better_odds";
 
+export interface CaseHintData {
+  tierName: string;
+  tierColor: string;
+  hintTitle: string;
+  hintValue: string;
+  circle?: { center: LatLng; radiusMeters: number };
+  band?: { min: number; max: number; axis: "lat" | "lng" };
+  exact?: LatLng;
+}
 export const DEFAULT_SETTINGS: Settings = {
   maxPoints: 5000,
   scoreScaleKm: 2000,
@@ -35,6 +51,10 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceChat: false,
   allowUnofficialCoverage: false,
   selectedMap: "global",
+  cheatsEnabled: false,
+  caseEnabled: false,
+  caseOddsMode: "better_odds",
+  gameMode: "classic",
 };
 
 // ---------------------------------------------------------------------------
@@ -99,6 +119,8 @@ export interface HidingSpot extends LatLng {
 export interface Guess extends LatLng {
   distanceKm: number;
   points: number;
+  damage?: number;
+  caseEffect?: { type: string; value: number; text: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +149,7 @@ export interface Player {
     pitch: number;
     zoom: number;
   } | null;
+  hp: number;
   totalScore: number;
 }
 
@@ -154,6 +177,7 @@ export interface PublicPlayer {
   isGameMaster: boolean;
   connected: boolean;
   hasHidden: boolean;
+  hp: number;
   totalScore: number;
 }
 
@@ -164,6 +188,7 @@ export interface CurrentTarget {
   panoId: string; // imagery only; coords never sent here
   heading: number;
   pitch: number;
+  realCoords?: LatLng; // Отправляется только если включены читы
 }
 
 export interface PublicGuess extends LatLng {
@@ -172,6 +197,8 @@ export interface PublicGuess extends LatLng {
   emoji: string;
   distanceKm: number;
   points: number;
+  damage?: number;
+  caseEffect?: { type: string; value: number; text: string };
 }
 
 export interface RoundResult {
@@ -227,6 +254,8 @@ export interface PublicState {
   // finding phase
   currentRound: number;
   totalRounds: number;
+  subRound?: number; // Добавлено для отслеживания текущего игрока в цикле
+  totalSubRounds?: number; // Добавлено для отслеживания общего количества игроков
   currentTarget: CurrentTarget | null; // null when you are the target
   youAreTarget: boolean;
   youHaveGuessed: boolean;

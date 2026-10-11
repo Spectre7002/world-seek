@@ -1212,3 +1212,121 @@ button.stepper-btn {
     max-height: 25vh;
   }
 }
+/* --- ЗДОРОВЬЕ (HP BAR) --- */
+.hp-indicator {
+  background: #111827;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-weight: 900;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.hp-bar-bg {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.hp-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.5s ease;
+}
+
+/* --- CS2 ROULETTE --- */
+.roulette-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+}
+
+.roulette-window {
+  width: 80%;
+  max-width: 800px;
+  height: 160px;
+  background: #1a1a24;
+  border: 2px solid #333;
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  box-shadow: inset 0 0 40px rgba(0,0,0,0.8), 0 10px 30px rgba(0,0,0,0.8);
+}
+
+.roulette-pointer {
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffaa00;
+  font-size: 32px;
+  z-index: 10;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+
+.roulette-strip {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  /* Анимация прокрутки: стартуем с 0, едем на -45 элементов */
+  transform: translateX(calc(50% - 110px)); 
+  animation: spin-roulette 6s cubic-bezier(0.1, 0.8, 0.1, 1) forwards;
+}
+
+@keyframes spin-roulette {
+  0% { transform: translateX(calc(50% - 110px)); }
+  100% { transform: translateX(calc(50% - (45 * 160px) - 80px)); }
+}
+
+.roulette-card {
+  min-width: 150px;
+  height: 120px;
+  background: #2a2a35;
+  margin: 0 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 14px;
+  border-radius: 4px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.roulette-card.winner {
+  background: #333344;
+  animation: winner-pulse 1s infinite 6s;
+}
+
+@keyframes winner-pulse {
+  0% { box-shadow: 0 0 0px 0px rgba(255, 215, 0, 0.8); }
+  50% { box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.4); }
+  100% { box-shadow: 0 0 0px 0px rgba(255, 215, 0, 0); }
+}
+
+/* --- ЧИТ-МЕНЮ МОДАЛКА --- */
+.cheat-modal-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cheat-modal {
+  width: 400px;
+  background: var(--bg-elev);
+  border: 1px solid var(--accent);
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}

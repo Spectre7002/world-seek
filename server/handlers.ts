@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { spinClassicCase } from "./caseEngine";
 import type { Server, Socket } from "socket.io";
 import type {
   ActionAck,
@@ -178,6 +179,12 @@ export function registerHandlers(io: Server): void {
       ) {
         const room = getRoom(toSafeString(payload?.code, 32));
         if (!room) return ack({ ok: false, error: "not_found" });
+
+        // Проверка на режим 1v1
+        if (room.settings.is1v1 && room.players.length >= 2) {
+          return ack({ ok: false, error: "full" });
+        }
+
         const result = addPlayer(
           room,
           toSafeString(payload?.name, 24),
@@ -226,7 +233,6 @@ export function registerHandlers(io: Server): void {
       },
     );
 
-    // Новий обробник оновлення настройок лоббі хостом
     socket.on(
       "game:settings",
       function (payload: { settings?: Partial<Settings> }, cb?: AckFn) {
@@ -240,6 +246,13 @@ export function registerHandlers(io: Server): void {
           if (clean.selectedMap && !isAvailableMap(clean.selectedMap)) {
             delete clean.selectedMap;
           }
+
+          // Принудительное присвоение новых булевых флагов
+          if (typeof payload.settings.cheatsEnabled === "boolean") clean.cheatsEnabled = payload.settings.cheatsEnabled;
+          if (typeof payload.settings.caseEnabled === "boolean") clean.caseEnabled = payload.settings.caseEnabled;
+          if (typeof payload.settings.is1v1 === "boolean") clean.is1v1 = payload.settings.is1v1;
+          if (typeof payload.settings.caseOddsMode === "string") clean.caseOddsMode = payload.settings.caseOddsMode;
+
           Object.assign(s.room.settings, clean);
           saveRoom(s.room);
           broadcastState(io, s.room);
@@ -247,7 +260,21 @@ export function registerHandlers(io: Server): void {
         reply(cb, { ok: true });
       },
     );
+socket.on("case:open", function (cb: (res: { ok: boolean; hint?: any; error?: string }) => void) {
+  const s = seat(socket);
+  if (!s) return cb({ ok: false, error: "not_seated" });
+  if (s.room.phase !== "finding") return cb({ ok: false, error: "wrong_phase" });
+  if (!s.room.settings.caseEnabled) return cb({ ok: false, error: "cases_disabled" });
 
+  const target = s.room.targets[s.room.currentRound];
+  if (!target) return cb({ ok: false, error: "no_target" });
+
+  // Генерируем подсказку на сервере используя секретные координаты цели
+  const mode = s.room.settings.caseOddsMode || "better_odds";
+  const hintData = spinClassicCase(mode, target.lat, target.lng);
+
+  cb({ ok: true, hint: hintData });
+});
     socket.on("game:start", function (cb?: AckFn) {
       const s = seat(socket);
       if (!s) return reply(cb, { ok: false, reason: "not_seated" });
