@@ -146,7 +146,7 @@ export default function Lobby(props: Props) {
               <h1 className="title">{t("Game lobby")}</h1>
               <LanguageSwitch />
               <span className="badge good">
-                {isSolo ? t("Solo mode") : state.settings.is1v1 ? "1v1 Дуэль" : t("Multiplayer")}
+                {isSolo ? t("Solo mode") : state.settings.is1v1 ? t("1v1 Duel") : t("Multiplayer")}
               </span>
             </div>
 
@@ -290,8 +290,8 @@ export default function Lobby(props: Props) {
 
               <div className="setting-row">
                 <div className="setting-info">
-                  <span className="setting-label">Режим Игры</span>
-                  <span className="setting-desc">Classic (Очки) / HP Mode (Здоровье)</span>
+                  <span className="setting-label">{t("Game mode")}</span>
+                  <span className="setting-desc">{t("Classic (Points) / HP Mode (Health)")}</span>
                 </div>
                 <button
                   type="button"
@@ -301,7 +301,7 @@ export default function Lobby(props: Props) {
                   style={{ marginTop: 12 }}
                   onClick={toggleGameMode}
                 >
-                  {state.settings.gameMode === "hp" ? "HP Mode 🩸" : "Classic 🏆"}
+                  {state.settings.gameMode === "hp" ? `${t("HP Mode")} 🩸` : `${t("Classic")} 🏆`}
                 </button>
               </div>
 
@@ -352,14 +352,14 @@ export default function Lobby(props: Props) {
 
               <div className="card stack" style={{ gap: 20 }}>
                 <div className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="eyebrow">Дополнительно 🌟</span>
+                  <span className="eyebrow">{t("Additional 🌟")}</span>
                   {!isGM && <span className="badge">{t("Host only")}</span>}
                 </div>
 
                 <div className="setting-row">
                   <div className="setting-info">
-                    <span className="setting-label">Разрешить Читы 🔮</span>
-                    <span className="setting-desc">Открывает меню настройки сдвига и радиуса цели</span>
+                    <span className="setting-label">{t("Enable Cheats 🔮")}</span>
+                    <span className="setting-desc">{t("Opens the menu for adjusting target offset and radius")}</span>
                   </div>
                   <button
                     type="button"
@@ -369,14 +369,14 @@ export default function Lobby(props: Props) {
                     style={{ marginTop: 12 }}
                     onClick={toggleCheats}
                   >
-                    {state.settings.cheatsEnabled ? "Вкл" : "Выкл"}
+                    {state.settings.cheatsEnabled ? t("Enabled") : t("Disabled")}
                   </button>
                 </div>
 
                 <div className="setting-row">
                   <div className="setting-info">
-                    <span className="setting-label">Специальный Кейс 🎁</span>
-                    <span className="setting-desc">Случайные награды / Шансы</span>
+                    <span className="setting-label">{t("Special Case 🎁")}</span>
+                    <span className="setting-desc">{t("Random rewards / odds")}</span>
                   </div>
                   <div className="row" style={{ gap: 10, alignItems: "center", marginTop: 12 }}>
                     <select
@@ -385,8 +385,8 @@ export default function Lobby(props: Props) {
                       disabled={!isGM}
                       style={{ padding: "6px 10px", background: "var(--bg-elev-2)", color: "#fff", borderRadius: 4, border: "1px solid var(--border-color)", cursor: "pointer" }}
                     >
-                      <option value="standard">Standard</option>
-                      <option value="better_odds">Better</option>
+                      <option value="standard">{t("Standard")}</option>
+                      <option value="better_odds">{t("Better")}</option>
                     </select>
                     <button
                       type="button"
@@ -395,7 +395,7 @@ export default function Lobby(props: Props) {
                       disabled={!isGM}
                       onClick={toggleCase}
                     >
-                      {state.settings.caseEnabled ? "Вкл" : "Выкл"}
+                      {state.settings.caseEnabled ? t("Enabled") : t("Disabled")}
                     </button>
                   </div>
                 </div>
@@ -407,7 +407,7 @@ export default function Lobby(props: Props) {
           {isGM ? (
             <div className="card stack lobby-start-card" style={{ gap: 10 }}>
               <button type="button" className="btn-primary-large" onClick={onStart}>
-                {state.settings.is1v1 ? "Start 1v1 Duel" : isSolo ? t("Play solo") : t("Start game")}
+                {state.settings.is1v1 ? t("Start 1v1 Duel") : isSolo ? t("Play solo") : t("Start game")}
               </button>
               {isSolo && (
                 <p className="muted" style={{ margin: 0, fontSize: 13, textAlign: "center" }}>

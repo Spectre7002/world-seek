@@ -1278,14 +1278,16 @@ button.stepper-btn {
   display: flex;
   height: 100%;
   align-items: center;
-  /* Анимация прокрутки: стартуем с 0, едем на -45 элементов */
+  /* The winner index is supplied by the roulette component for each spin. */
   transform: translateX(calc(50% - 110px)); 
   animation: spin-roulette 6s cubic-bezier(0.1, 0.8, 0.1, 1) forwards;
 }
 
 @keyframes spin-roulette {
   0% { transform: translateX(calc(50% - 110px)); }
-  100% { transform: translateX(calc(50% - (45 * 160px) - 80px)); }
+  100% {
+    transform: translateX(calc(50% - (var(--roulette-stop-index) * 160px) - 80px + var(--roulette-stop-offset)));
+  }
 }
 
 .roulette-card {

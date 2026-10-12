@@ -16,6 +16,7 @@ import VoiceChat from "./VoiceChat";
 import RoundStartNotice from "./RoundStartNotice";
 import AmbientMusic from "./AmbientMusic";
 import { useLanguage } from "@/lib/language";
+import { useState, useEffect } from "react";
 
 export default function GameRoom(props: { code: string }) {
   const { t } = useLanguage();
@@ -31,6 +32,16 @@ export default function GameRoom(props: { code: string }) {
   const youId = game.state ? game.state.youId : "";
 
   const voice = useVoiceChat(voiceChatEnabled, players, youId);
+  
+  // Сохраняем текущий чит, чтобы передать его в результаты
+  const [currentCaseHint, setCurrentCaseHint] = useState<any>(null);
+
+  // Сбрасываем чит при начале нового раунда
+  useEffect(() => {
+    if (game.state?.phase === "hiding" || (game.state?.phase === "finding" && game.state.guessedCount === 0)) {
+      setCurrentCaseHint(null);
+    }
+  }, [game.state?.phase, game.state?.currentRound, game.state?.guessedCount]);
 
   if (game.budgetBlocked) {
     return <BudgetClosed inGame />;
@@ -84,11 +95,13 @@ export default function GameRoom(props: { code: string }) {
             onGuess={game.guess}
             onPreview={game.previewGuess}
             onView={game.syncView}
-	    onOpenCase={game.openCase}
+            onOpenCase={game.openCase}
+            onCaseOpened={setCurrentCaseHint} // Сохраняем чит
           />
         );
       case "results":
-        return <ResultsPhase state={s} onNext={game.nextRound} />;
+        // Передаем сохраненный чит в результаты
+        return <ResultsPhase state={s} onNext={game.nextRound} caseHint={currentCaseHint} />;
       case "finished":
         return <FinalScores state={s} onReturnToLobby={game.returnToLobby} />;
       default:

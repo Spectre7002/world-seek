@@ -34,12 +34,15 @@ function AnimatedNumber({ value }: { value: number }) {
 interface Props {
   state: PublicState;
   onNext: () => void;
+  // Получаем чит из GameRoom для отрисовки зоны
+  caseHint?: any;
 }
 
 export default function ResultsPhase(props: Props) {
   const { t } = useLanguage();
   const state = props.state;
   const onNext = props.onNext;
+  const caseHint = props.caseHint;
   const result = state.result;
   const isLast = state.solo 
   ? state.currentRound + 1 >= state.totalRounds
@@ -65,7 +68,8 @@ export default function ResultsPhase(props: Props) {
             {!state.solo && <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(result.targetEmoji)} alt="" /></span>}
             <span>{state.solo ? <>{t("This was the spot 📍")}</> : <><strong>{result.targetName}</strong>{t(" was hiding here 📍")}</>}</span>
           </div>
-          <MapPicker markers={markers} lines={lines} fitToContent />
+          {/* Передаем caseHint в MapPicker для финальной карты */}
+          <MapPicker markers={markers} lines={lines} fitToContent caseHint={caseHint} />
         </div>
         <div style={{ padding: 24, overflowY: "auto", background: "var(--bg)", display: "flex", flexDirection: "column", gap: 16 }}>
           

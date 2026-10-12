@@ -28,14 +28,21 @@ export interface Settings {
   caseEnabled: boolean;
   caseOddsMode: CaseMode;
   gameMode: "classic" | "hp";
+  is1v1: boolean;
 }
 export type CaseMode = "standard" | "better_odds";
+export interface LocalizedText {
+  ru: string;
+  en: string;
+}
 
 export interface CaseHintData {
-  tierName: string;
+  tierKey: string;
+  tierName: LocalizedText;
   tierColor: string;
-  hintTitle: string;
-  hintValue: string;
+  itemName: LocalizedText;
+  hintTitle: LocalizedText;
+  hintValue: LocalizedText;
   circle?: { center: LatLng; radiusMeters: number };
   band?: { min: number; max: number; axis: "lat" | "lng" };
   exact?: LatLng;
@@ -55,6 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
   caseEnabled: false,
   caseOddsMode: "better_odds",
   gameMode: "classic",
+  is1v1: false,
 };
 
 // ---------------------------------------------------------------------------

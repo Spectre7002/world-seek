@@ -284,7 +284,7 @@ export function useGame(code: string) {
   );
 
   const openCase = useCallback(function (): Promise<{ ok: boolean; hint?: any }> {
-    return emitAck("case:open", {});
+    return emitAction<{ ok: boolean; hint?: any }>("case:open");
   }, []);
 
   return {

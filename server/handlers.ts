@@ -260,21 +260,36 @@ export function registerHandlers(io: Server): void {
         reply(cb, { ok: true });
       },
     );
-socket.on("case:open", function (cb: (res: { ok: boolean; hint?: any; error?: string }) => void) {
-  const s = seat(socket);
-  if (!s) return cb({ ok: false, error: "not_seated" });
-  if (s.room.phase !== "finding") return cb({ ok: false, error: "wrong_phase" });
-  if (!s.room.settings.caseEnabled) return cb({ ok: false, error: "cases_disabled" });
 
-  const target = s.room.targets[s.room.currentRound];
-  if (!target) return cb({ ok: false, error: "no_target" });
+    // ИСПРАВЛЕННЫЙ ВЫЗОВ case:open
+    socket.on("case:open", function (cb: (res: { ok: boolean; hint?: any; error?: string }) => void) {
+      const s = seat(socket);
+      if (!s) return cb({ ok: false, error: "not_seated" });
+      if (s.room.phase !== "finding") return cb({ ok: false, error: "wrong_phase" });
+      if (!s.room.settings.caseEnabled) return cb({ ok: false, error: "cases_disabled" });
 
-  // Генерируем подсказку на сервере используя секретные координаты цели
-  const mode = s.room.settings.caseOddsMode || "better_odds";
-  const hintData = spinClassicCase(mode, target.lat, target.lng);
+      let targetLat: number;
+      let targetLng: number;
 
-  cb({ ok: true, hint: hintData });
-});
+      if (s.room.mode === "solo") {
+        const target = s.room.targets[s.room.currentRound];
+        if (!target) return cb({ ok: false, error: "no_target" });
+        targetLat = target.lat;
+        targetLng = target.lng;
+      } else {
+        const targetId = s.room.order[s.room.currentRound];
+        const targetPlayer = findPlayer(s.room, targetId);
+        if (!targetPlayer || !targetPlayer.hiding) return cb({ ok: false, error: "no_target" });
+        targetLat = targetPlayer.hiding.lat;
+        targetLng = targetPlayer.hiding.lng;
+      }
+
+      const mode = s.room.settings.caseOddsMode || "better_odds";
+      const hintData = spinClassicCase(mode, targetLat, targetLng);
+
+      cb({ ok: true, hint: hintData });
+    });
+
     socket.on("game:start", function (cb?: AckFn) {
       const s = seat(socket);
       if (!s) return reply(cb, { ok: false, reason: "not_seated" });

@@ -74,7 +74,7 @@ export default function MapPicker({
   const keyedRef = useRef<Map<string, ImageMarker | google.maps.Marker>>(new Map());
   const linesRef = useRef<google.maps.Polyline[]>([]);
   const coverageRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
-  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker>>([]); // Сохраняем отрисовки от кейсов
+  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker | google.maps.Rectangle>>([]); // Сохраняем отрисовки от кейсов
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onDragRef = useRef(onDrag);
