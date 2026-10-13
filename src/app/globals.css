@@ -65,7 +65,6 @@ body {
   overflow: hidden;
 }
 
-/* Делаем компас некликабельным и скрываем лишние стрелки вращения */
 .gm-compass {
   pointer-events: none !important;
   cursor: default !important;
@@ -77,7 +76,6 @@ body {
   display: none !important;
 }
 
-/* Styled name input that matches the game's dark panels. */
 input.player-name-input {
   font-family: var(--font-body);
   font-size: 18px !important;
@@ -96,7 +94,6 @@ input.player-name-input:focus {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
 }
 
-/* Responsive avatar grid that keeps every option reachable on narrow screens. */
 .emoji-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fit, minmax(42px, 1fr)) !important;
@@ -177,9 +174,14 @@ input.player-name-input:focus {
   background: var(--bg-elev-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
 }
 
-/* Таймер обратного отсчета */
+.player-row.is-winner {
+  border-color: rgba(16, 185, 129, 0.6);
+  box-shadow: inset 0 0 16px rgba(16, 185, 129, 0.1);
+}
+
 .timer-badge {
   display: inline-flex;
   align-items: center;
@@ -210,12 +212,8 @@ input.player-name-input:focus {
 }
 
 @keyframes edge-pulse {
-  from {
-    box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0.18);
-  }
-  to {
-    box-shadow: inset 0 0 0 12px rgba(239, 68, 68, 0.82);
-  }
+  from { box-shadow: inset 0 0 0 0 rgba(239, 68, 68, 0.18); }
+  to { box-shadow: inset 0 0 0 12px rgba(239, 68, 68, 0.82); }
 }
 
 .round-start-notice {
@@ -235,25 +233,13 @@ input.player-name-input:focus {
 }
 
 @keyframes round-notice-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -12px);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, 0);
-  }
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
 }
 
 @keyframes timer-pulse {
-  0% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
-  }
-  100% {
-    opacity: 0.5;
-    box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.8);
-  }
+  0% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  100% { opacity: 0.5; box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.8); }
 }
 
 .full-bleed {
@@ -597,7 +583,6 @@ button.stepper-btn {
   .lobby-shell {
     width: calc(100vw - 24px) !important;
   }
-
   .lobby-settings-grid {
     grid-template-columns: 1fr;
   }
@@ -619,9 +604,55 @@ button.stepper-btn {
   font-size: 12px;
 }
 
+/* --- ОБНОВЛЕННЫЙ КОМПАС ИЗ СКРИНШОТА --- */
+.sv-heading-band {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 25;
+  width: 280px;
+  height: 32px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: rgba(17, 24, 39, 0.65);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  pointer-events: none;
+  transform: translateX(-50%);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sv-heading-band span {
+  position: absolute;
+  top: 8px;
+  font: 700 12px var(--font-mono);
+  opacity: 0.8;
+  transform: translateX(-50%);
+}
+
+.sv-heading-band span.is-north {
+  color: #f87171;
+  opacity: 1;
+}
+
+.sv-heading-band i {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 2px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.7);
+  transform: translateX(-50%);
+}
+
+.sv-heading-band i::after {
+  display: none;
+}
+
 .sv-topbar {
   position: absolute;
-  top: 50px;
+  top: 60px; /* Опускаем из-за полосок ХП */
   left: 50%;
   z-index: 15;
   display: flex;
@@ -651,78 +682,6 @@ button.stepper-btn {
   background: rgba(9, 13, 22, 0.84);
   box-shadow: var(--shadow-main);
   pointer-events: none;
-}
-
-.sv-heading-band {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 14;
-  width: 100%;
-  height: 42px;
-  overflow: hidden;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-  background: linear-gradient(180deg, rgba(9, 13, 22, 0.9), rgba(9, 13, 22, 0.65));
-  color: #fff;
-  pointer-events: none;
-}
-
-.sv-road-arrow {
-  position: absolute;
-  z-index: 13;
-  width: 46px;
-  height: 46px;
-  padding: 0;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 50%;
-  background: rgba(9, 13, 22, 0.72);
-  color: white;
-  font-size: 29px;
-  line-height: 1;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
-  cursor: pointer;
-  transform-origin: center;
-  pointer-events: none;
-}
-
-.sv-road-arrow:hover {
-  border-color: #fff;
-  background: rgba(99, 102, 241, 0.92);
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.75);
-}
-
-.sv-heading-band span {
-  position: absolute;
-  top: 8px;
-  font: 700 11px var(--font-mono);
-  opacity: 0.8;
-  transform: translateX(-50%);
-}
-
-.sv-heading-band span.is-north {
-  color: #f87171;
-  opacity: 1;
-}
-
-.sv-heading-band i {
-  position: absolute;
-  top: 0;
-  left: 50%;
-  width: 1px;
-  height: 42px;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.sv-heading-band i::after {
-  position: absolute;
-  bottom: 0;
-  left: -4px;
-  width: 0;
-  height: 0;
-  border-right: 4px solid transparent;
-  border-bottom: 6px solid var(--accent);
-  border-left: 4px solid transparent;
-  content: "";
 }
 
 .sv-compass {
@@ -805,7 +764,7 @@ button.stepper-btn {
 
 .round-hud {
   position: absolute;
-  top: 64px;
+  top: 74px; /* Опускаем ниже новых полосок */
   right: 16px;
   z-index: 30;
   display: flex;
@@ -1047,20 +1006,17 @@ button.stepper-btn {
 
 @media (max-width: 820px) {
   .sv-topbar {
-    top: 50px;
+    top: 60px;
     gap: 6px;
     padding: 5px 7px;
   }
-
   .sv-navigation {
     gap: 4px;
   }
-
   button.sv-navigation button {
     padding: 7px 6px;
     font-size: 11px;
   }
-
   .floating-map {
     right: 10px;
     bottom: 10px;
@@ -1069,16 +1025,13 @@ button.stepper-btn {
     min-width: 190px;
     min-height: 150px;
   }
-
   .guess-map-window {
     bottom: 88px;
   }
-
   .hiding-map-window {
     width: min(360px, 58vw);
     height: min(280px, 38vh);
   }
-
   .floating-map:hover,
   .hiding-map-window:hover,
   .guess-map-window:hover,
@@ -1086,33 +1039,28 @@ button.stepper-btn {
     width: min(88vw, 700px);
     height: min(58vh, 550px);
   }
-
   .round-hud {
-    top: 100px;
+    top: 110px;
     right: 10px;
     max-width: calc(100vw - 20px);
     padding: 7px 8px;
     font-size: 12px;
   }
-
   .guess-confirm-bar,
   .hiding-confirm-bar {
     bottom: 76px;
     left: 10px;
     max-width: calc(100vw - 20px);
   }
-
   .guess-confirm-bar {
     right: 10px;
     left: auto;
   }
-
   .watch-target-heading {
     top: 100px;
     left: 10px;
     max-width: calc(100vw - 20px);
   }
-
   .sv-compass-dial {
     bottom: 14px;
     left: 14px;
@@ -1126,20 +1074,16 @@ button.stepper-btn {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
-
   .home-create-card .emoji-grid {
     max-height: 220px !important;
   }
-
   .home-create-card > .card,
   .home-form-grid > .card {
     padding: 12px;
   }
-
   .home-heading .title {
     font-size: 42px !important;
   }
-
   .home-shell {
     gap: 10px !important;
   }
@@ -1150,19 +1094,15 @@ button.stepper-btn {
     padding-top: 10px;
     padding-bottom: 10px;
   }
-
   .home-heading .title {
     font-size: 42px !important;
   }
-
   .home-heading .eyebrow {
     font-size: 14px !important;
   }
-
   .home-heading .pullquote {
     font-size: 14px !important;
   }
-
 }
 
 .roster {
@@ -1222,7 +1162,8 @@ button.stepper-btn {
     max-height: 25vh;
   }
 }
-/* --- ЗДОРОВЬЕ (HP BAR) --- */
+
+/* --- ОБНОВЛЕННЫЕ HP BARS ИЗ СКРИНШОТА --- */
 .hp-indicator {
   background: #111827;
   color: #ef4444;
@@ -1231,6 +1172,133 @@ button.stepper-btn {
   border-radius: 6px;
   font-weight: 900;
   box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.hp-battle-hud {
+  position: absolute;
+  top: 12px;
+  left: 16px;
+  right: 16px;
+  z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.hp-battle-player {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 44%;
+  max-width: 520px;
+}
+
+.hp-battle-player--right {
+  flex-direction: row-reverse;
+}
+
+.hp-battle-avatar-wrapper {
+  width: 62px;
+  height: 62px;
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  margin-top: -4px;
+}
+
+.hp-battle-avatar-wrapper img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+
+.hp-battle-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.hp-battle-track-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.hp-battle-track {
+  position: relative;
+  flex: 1;
+  height: 30px;
+  border: 2px solid #7c3aed;
+  border-radius: 4px;
+  background: #111827;
+  overflow: hidden;
+  transform: skewX(-10deg);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+}
+
+.hp-battle-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #84cc16, #a3e635);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hp-battle-player--right .hp-battle-fill {
+  background: linear-gradient(270deg, #84cc16, #a3e635);
+  margin-left: auto;
+}
+
+.hp-battle-val {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  text-shadow: 0 1px 3px #000;
+  transform: skewX(10deg);
+}
+
+.hp-battle-mult {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 900;
+  font-size: 16px;
+  font-style: italic;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  border: 2px solid #93c5fd;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4);
+  transform: scale(1);
+}
+
+.hp-battle-mult.is-pulsing {
+  animation: mult-pulse-new 0.5s ease-out;
+}
+
+@keyframes mult-pulse-new {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.25); filter: brightness(1.3); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.hp-battle-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-shadow: 0 2px 4px #000;
+}
+
+.hp-battle-player--right .hp-battle-name {
+  justify-content: flex-end;
 }
 
 .hp-bar-bg {
@@ -1247,6 +1315,19 @@ button.stepper-btn {
   height: 100%;
   border-radius: 6px;
   transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.5s ease;
+}
+
+@media (max-width: 620px) {
+  .hp-battle-hud {
+    top: 10px;
+    width: calc(100vw - 20px);
+    gap: 8px;
+  }
+  .hp-battle-name strong {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
 /* --- CS2 ROULETTE --- */
@@ -1288,7 +1369,6 @@ button.stepper-btn {
   display: flex;
   height: 100%;
   align-items: center;
-  /* The winner index is supplied by the roulette component for each spin. */
   transform: translateX(calc(50% - 110px)); 
   animation: spin-roulette 6s cubic-bezier(0.1, 0.8, 0.1, 1) forwards;
 }

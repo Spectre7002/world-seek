@@ -91,7 +91,10 @@ export default function Lobby(props: Props) {
 
   function selectGameMode(gameMode: "classic" | "hp") {
     if (onUpdateSettings && state.settings.gameMode !== gameMode) {
-      onUpdateSettings({ gameMode });
+      onUpdateSettings({
+        gameMode,
+        ...(gameMode === "hp" ? { hidingTimeLimit: 0 } : {}),
+      });
     }
   }
 
@@ -228,7 +231,7 @@ export default function Lobby(props: Props) {
                 )}
               </div>}
 
-              <div className="setting-row">
+              {state.settings.gameMode !== "hp" && <div className="setting-row">
                 <div className="setting-info">
                   <span className="setting-label">{t("Hiding timer")}</span>
                   <span className="setting-desc">{t("Time to choose a spot")}</span>
@@ -256,7 +259,7 @@ export default function Lobby(props: Props) {
                 ) : (
                   <span className="setting-value-static" style={{ marginTop: 12 }}>{formatTime(hidingTimeVal)}</span>
                 )}
-              </div>
+              </div>}
 
               <div className="setting-row">
                 <div className="setting-info">

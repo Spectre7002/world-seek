@@ -64,6 +64,8 @@ const translations: Record<string, { en: string; ru: string }> = {
   "HP Mode": { en: "HP Mode", ru: "Режим HP" },
   "Until someone is eliminated": { en: "Until someone is eliminated", ru: "До смерти игрока" },
   "Top guess": { en: "Top guess", ru: "Лучший гесс" },
+  points: { en: "points", ru: "очков" },
+  Health: { en: "Health", ru: "Здоровье" },
   "Additional 🌟": { en: "Additional 🌟", ru: "Дополнительно 🌟" },
   "Enable Cheats 🔮": { en: "Enable Cheats 🔮", ru: "Разрешить читы 🔮" },
   "Opens the menu for adjusting target offset and radius": { en: "Opens the menu for adjusting target offset and radius", ru: "Открывает меню настройки смещения и радиуса цели" },

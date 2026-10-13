@@ -37,6 +37,69 @@ const ROULETTE_POOL = [
   { name: { ru: "5K Pinpoint", en: "5K Pinpoint" }, color: "#ffd700" }
 ];
 
+function PlayerBar({ player, state, side }: { player: PublicPlayer; state: PublicState; side: "left" | "right" }) {
+  const { t } = useLanguage();
+  const percent = Math.max(0, Math.min(100, (player.hp / 10000) * 100));
+  const mult = player.guessMultiplier ?? 1;
+  const [pulse, setPulse] = useState(false);
+  const prevMult = useRef(mult);
+
+  useEffect(() => {
+    if (mult !== prevMult.current) {
+      prevMult.current = mult;
+      setPulse(true);
+      const timer = setTimeout(() => setPulse(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [mult]);
+
+  const multText = mult % 1 === 0 ? mult.toString() : mult.toFixed(1);
+
+  return (
+    <div className={`hp-battle-player hp-battle-player--${side}`}>
+      <div className="hp-battle-avatar-wrapper">
+        <img className="emoji-img" src={emojiUrl(player.emoji)} alt="" />
+      </div>
+      <div className="hp-battle-main">
+        <div className="hp-battle-track-wrapper">
+          {side === "right" && (
+            <div className={`hp-battle-mult${pulse ? " is-pulsing" : ""}`}>
+              x{multText}
+            </div>
+          )}
+          <div className="hp-battle-track">
+            <div className="hp-battle-fill" style={{ width: `${percent}%` }} />
+            <span className="hp-battle-val">{player.hp.toLocaleString()}</span>
+          </div>
+          {side === "left" && (
+            <div className={`hp-battle-mult${pulse ? " is-pulsing" : ""}`}>
+              x{multText}
+            </div>
+          )}
+        </div>
+        <div className="hp-battle-name">
+          <strong>{player.name}</strong>
+          {player.id === state.youId && <span className="badge">{t("you")}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HpBattleHud({ state }: { state: PublicState }) {
+  const me = state.players.find((player) => player.id === state.youId);
+  const opponent = state.players.find((player) => player.id !== state.youId);
+
+  if (!me || !opponent) return null;
+
+  return (
+    <div className="hp-battle-hud" aria-label="Health">
+      <PlayerBar player={me} state={state} side="left" />
+      <PlayerBar player={opponent} state={state} side="right" />
+    </div>
+  );
+}
+
 export default function FindingPhase(props: Props) {
   const { language, t } = useLanguage();
   const lang = language;
@@ -46,7 +109,9 @@ export default function FindingPhase(props: Props) {
   const onView = props.onView;
 
   const [guess, setGuess] = useState<LatLng | null>(null);
-  const roundLabel = t("Round") + " " + (state.currentRound + 1) + " " + t("of") + " " + state.totalRounds;
+  const roundLabel = state.settings.gameMode === "hp"
+    ? t("Round") + " " + (state.currentRound + 1)
+    : t("Round") + " " + (state.currentRound + 1) + " " + t("of") + " " + state.totalRounds;
 
   const [caseHint, setCaseHint] = useState<any>(null);
   const [rouletteActive, setRouletteActive] = useState(false);
@@ -118,8 +183,6 @@ export default function FindingPhase(props: Props) {
       });
 
       const winnerIndex = 35 + Math.floor(Math.random() * 16);
-      // Keep the pointer inside the winning card, but make its landing point
-      // different on every spin instead of always using the card center.
       const stopOffset = Math.round(Math.random() * 140 - 70);
       fakes[winnerIndex] = {
         name: res.hint.itemName || { ru: res.hint.tierName.ru, en: res.hint.tierName.en },
@@ -133,7 +196,6 @@ export default function FindingPhase(props: Props) {
       setRouletteStopOffset(stopOffset);
       setRouletteActive(true);
 
-      // Замедленная анимация ровно на 5 секунд
       setTimeout(() => {
         setCaseHint(res.hint);
         setWinModalHint(res.hint);
@@ -187,14 +249,18 @@ export default function FindingPhase(props: Props) {
   }));
 
   if (state.youAreTarget || state.youHaveGuessed) {
-    return <WatchView roundLabel={roundLabel} title={state.youAreTarget ? t("Everyone's hunting for you 🔎") : t("Guess locked in ✅")} emptyHint={t("Waiting for the others.")} markers={liveMarkers} views={state.liveViews} current={state.guessedCount} total={state.expectedGuessers} players={state.players} excludePlayerId={state.youAreTarget ? state.youId : state.currentTarget?.id} />;
+    return (
+      <>
+        {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
+        <WatchView roundLabel={roundLabel} title={state.youAreTarget ? t("Everyone's hunting for you 🔎") : t("Guess locked in ✅")} emptyHint={t("Waiting for the others.")} markers={liveMarkers} views={state.liveViews} current={state.guessedCount} total={state.expectedGuessers} players={state.players} excludePlayerId={state.youAreTarget ? state.youId : state.currentTarget?.id} />
+      </>
+    );
   }
 
   const findingTime = state.settings.findingTimeLimit || 0;
 
   return (
     <div className="full-bleed">
-      {/* Кнопки вынесены по центру слева с высоким z-index */}
       <div style={{ position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)", zIndex: 1000, display: "flex", flexDirection: "column", gap: 12 }}>
         {state.settings.cheatsEnabled && state.currentTarget?.realCoords && !caseHint && (
           <button
@@ -218,7 +284,6 @@ export default function FindingPhase(props: Props) {
         )}
       </div>
 
-      {/* Анимация прокрутки кейса */}
       {rouletteActive && (
         <div className="roulette-overlay">
           <div className="roulette-window">
@@ -254,7 +319,6 @@ export default function FindingPhase(props: Props) {
         </div>
       )}
 
-      {/* Всплывающее окно выигрыша */}
       {winModalHint && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.75)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--bg-elev-1)", padding: "28px", borderRadius: "16px", border: `3px solid ${winModalHint.tierColor}`, minWidth: "320px", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.8)", display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -279,7 +343,6 @@ export default function FindingPhase(props: Props) {
         </div>
       )}
 
-      {/* Модальное окно меню читов */}
       {showCheatMenu && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--bg-elev-1)", padding: "28px", minWidth: "360px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 8px 32px rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -317,6 +380,7 @@ export default function FindingPhase(props: Props) {
       )}
 
       <div className="round-play">
+        {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
         <div className="round-streetview">
           <div className="overlay-top overlay-top--emoji">
             {!state.solo && state.currentTarget && <span className="emoji-inline"><img className="emoji-img" src={emojiUrl(state.currentTarget.emoji)} alt="" /></span>}
@@ -326,15 +390,7 @@ export default function FindingPhase(props: Props) {
         </div>
 
         <div className="round-hud" style={{ flexWrap: "wrap" }}>
-          <span>{roundLabel}</span>
           {findingTime > 0 && <Timer seconds={findingTime} onExpire={() => onGuess(guess || { lat: 0, lng: 0 })} />}
-
-          {state.settings.gameMode === "hp" && (
-            <div className="hp-indicator">
-              ❤ {state.players.find(p => p.id === state.youId)?.hp || 10000} HP ·{" "}
-              {(state.players.find(p => p.id === state.youId)?.guessMultiplier ?? 1).toFixed(1)}x
-            </div>
-          )}
 
           {caseHint && (
             <div style={{ padding: "6px 10px", border: `2px solid ${caseHint.tierColor}`, borderRadius: 4, background: "rgba(0,0,0,0.85)", fontSize: 13 }}>

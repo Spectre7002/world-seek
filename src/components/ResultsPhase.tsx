@@ -34,7 +34,6 @@ function AnimatedNumber({ value }: { value: number }) {
 interface Props {
   state: PublicState;
   onNext: () => void;
-  // Получаем чит из GameRoom для отрисовки зоны
   caseHint?: any;
 }
 
@@ -62,6 +61,9 @@ export default function ResultsPhase(props: Props) {
     lines.push({ from: { lat: g.lat, lng: g.lng }, to: result.real, color: PALETTE[i % PALETTE.length] });
   }
 
+  // Находим максимальное количество очков, чтобы подсветить победителя раунда
+  const topPoints = Math.max(...result.guesses.map(g => g.points));
+
   return (
     <div className="full-bleed">
       <div className="split">
@@ -70,7 +72,6 @@ export default function ResultsPhase(props: Props) {
             {!state.solo && <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(result.targetEmoji)} alt="" /></span>}
             <span>{state.solo ? <>{t("This was the spot 📍")}</> : <><strong>{result.targetName}</strong>{t(" was hiding here 📍")}</>}</span>
           </div>
-          {/* Передаем caseHint в MapPicker для финальной карты */}
           <MapPicker markers={markers} lines={lines} fitToContent caseHint={caseHint} />
         </div>
         <div style={{ padding: 24, overflowY: "auto", background: "var(--bg)", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -78,34 +79,39 @@ export default function ResultsPhase(props: Props) {
           <div className="stack" style={{ gap: 4 }}>
             <span className="muted">
               {isHpMode
-                ? `${t("Round")} ${state.currentRound + 1} · ${t("Until someone is eliminated")}`
+                ? `${t("Round")} ${state.currentRound + 1}`
                 : `${t("Round")} ${state.currentRound + 1} ${t("of")} ${state.totalRounds}`}
             </span>
             <h2 className="title" style={{ fontSize: 22 }}>{t("This round's guesses")}</h2>
           </div>
 
           <div className="stack" style={{ gap: 8 }}>
-            {result.guesses.map(g => (
-              <div key={g.playerId} className="player-row">
-                <div className="row" style={{ gap: 8, alignItems: "center" }}>
-                  <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(g.emoji)} alt="" /></span>
-                  <strong>{g.name}</strong>
-                  <span className="muted">{formatDistance(g.distanceKm)}</span>
+            {result.guesses.map(g => {
+              const isWinner = g.points === topPoints;
+              return (
+                <div key={g.playerId} className={`player-row ${isHpMode && isWinner ? "is-winner" : ""}`}>
+                  <div className="row" style={{ gap: 8, alignItems: "center" }}>
+                    <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(g.emoji)} alt="" /></span>
+                    <strong>{g.name}</strong>
+                    <span className="muted">{formatDistance(g.distanceKm)}</span>
+                  </div>
+                  <div className="row" style={{ gap: 16 }}>
+                    <span className="muted">
+                      <strong>{g.points.toLocaleString()}</strong> {t("points")}
+                    </span>
+                    {isHpMode && (
+                      <strong style={{ color: isWinner ? "var(--good)" : "var(--danger)", minWidth: "64px", textAlign: "right" }}>
+                        {isWinner ? "0 HP" : `-${g.damage?.toLocaleString() ?? 0} HP`}
+                      </strong>
+                    )}
+                  </div>
                 </div>
-                {isHpMode ? (
-                  <strong style={{ color: g.damage ? "var(--danger)" : "var(--good)" }}>
-                    {g.damage ? `-${g.damage.toLocaleString()} HP` : `+${t("Top guess")}`}
-                    {g.appliedMultiplier ? ` · ${g.appliedMultiplier.toFixed(1)}x` : ""}
-                  </strong>
-                ) : (
-                  <strong>+{g.points.toLocaleString()}</strong>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="stack" style={{ gap: 8 }}>
-            <strong className="muted">{t("Standings")} {isHpMode ? "(Здоровье)" : "(Очки)"}</strong>
+            <strong className="muted">{t("Standings")} {isHpMode ? "(HP)" : ""}</strong>
             {state.players.map(p => {
               const hpPercent = Math.max(0, Math.min(100, (p.hp / 10000) * 100));
               return (

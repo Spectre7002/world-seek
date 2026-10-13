@@ -255,6 +255,9 @@ export function registerHandlers(io: Server): void {
           if (clean.gameMode === "hp" && connectedPlayers(s.room).length < 2) {
             clean.gameMode = "classic";
           }
+          if (clean.gameMode === "hp") {
+            clean.hidingTimeLimit = 0;
+          }
 
           Object.assign(s.room.settings, clean);
           saveRoom(s.room);

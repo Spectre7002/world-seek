@@ -131,7 +131,9 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     }
     if (room.phase === "results" && target) {
       const guesses: PublicGuess[] = [];
-      const resultPlayers = hpLocationGame ? connectedPlayers(room) : viewer ? [viewer] : [];
+      // HP rounds are shared by the whole lobby, so every player's guess must
+      // be visible on the results map, including players who disconnected.
+      const resultPlayers = hpLocationGame ? room.players : viewer ? [viewer] : [];
       for (let i = 0; i < resultPlayers.length; i++) {
         const player = resultPlayers[i];
         const guess = player.guesses["solo-" + room.currentRound];
