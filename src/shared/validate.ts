@@ -100,6 +100,9 @@ export function sanitizeSettings(v: unknown): Partial<Settings> {
   if (typeof o.selectedMap === "string" && o.selectedMap.length <= 80) {
     out.selectedMap = o.selectedMap;
   }
+  if (o.gameMode === "classic" || o.gameMode === "hp") {
+    out.gameMode = o.gameMode;
+  }
 
   return out;
 }

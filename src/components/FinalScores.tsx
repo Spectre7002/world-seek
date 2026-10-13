@@ -17,6 +17,7 @@ export default function FinalScores(props: Props) {
   const onReturnToLobby = props.onReturnToLobby;
 
   const ranked = state.players;
+  const isHpMode = state.settings.gameMode === "hp";
   const topScore = ranked[0] ? ranked[0].totalScore : 0;
   const winners = [];
   for (let i = 0; i < ranked.length; i++) {
@@ -26,7 +27,12 @@ export default function FinalScores(props: Props) {
   }
 
   let winnerText = "";
-  if (state.solo) {
+  if (isHpMode) {
+    const winner = ranked.find((player) => player.hp > 0);
+    winnerText = winner
+      ? t("Winner: {name}").replace("{name}", winner.name)
+      : t("Game over");
+  } else if (state.solo) {
     winnerText = t("You scored {score} points").replace("{score}", topScore.toLocaleString());
   } else if (winners.length === 1) {
     winnerText = t("Winner: {name}").replace("{name}", winners[0].name);
@@ -65,7 +71,9 @@ export default function FinalScores(props: Props) {
                   {p.id === state.youId && <span className="badge">{t("you")}</span>}
                 </div>
                 <strong style={{ fontVariantNumeric: "tabular-nums" }}>
-                  {p.totalScore.toLocaleString()}
+                  {state.settings.gameMode === "hp"
+                    ? `❤ ${p.hp.toLocaleString()} · ${(p.guessMultiplier ?? 1).toFixed(1)}x`
+                    : p.totalScore.toLocaleString()}
                 </strong>
               </div>
             );

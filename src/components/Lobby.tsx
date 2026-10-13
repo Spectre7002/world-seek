@@ -89,9 +89,9 @@ export default function Lobby(props: Props) {
     }
   }
 
-  function toggleGameMode() {
-    if (onUpdateSettings) {
-      onUpdateSettings({ gameMode: state.settings.gameMode === "hp" ? "classic" : "hp" });
+  function selectGameMode(gameMode: "classic" | "hp") {
+    if (onUpdateSettings && state.settings.gameMode !== gameMode) {
+      onUpdateSettings({ gameMode });
     }
   }
 
@@ -198,7 +198,7 @@ export default function Lobby(props: Props) {
                 {!isGM && <span className="badge">{t("Host only")}</span>}
               </div>
 
-              <div className="setting-row">
+              {state.settings.gameMode !== "hp" && <div className="setting-row">
                 <div className="setting-info">
                   <span className="setting-label">{t("Number of rounds")}</span>
                   <span className="setting-desc">{t("Hide-and-seek cycles per game")}</span>
@@ -226,7 +226,7 @@ export default function Lobby(props: Props) {
                 ) : (
                   <span className="setting-value-static" style={{ marginTop: 12 }}>{currentRoundsVal} {t("rounds")}</span>
                 )}
-              </div>
+              </div>}
 
               <div className="setting-row">
                 <div className="setting-info">
@@ -293,16 +293,26 @@ export default function Lobby(props: Props) {
                   <span className="setting-label">{t("Game mode")}</span>
                   <span className="setting-desc">{t("Classic (Points) / HP Mode (Health)")}</span>
                 </div>
-                <button
-                  type="button"
-                  className={`coverage-toggle${state.settings.gameMode === "hp" ? " is-on" : ""}`}
-                  role="switch"
-                  disabled={!isGM}
-                  style={{ marginTop: 12 }}
-                  onClick={toggleGameMode}
-                >
-                  {state.settings.gameMode === "hp" ? `${t("HP Mode")} 🩸` : `${t("Classic")} 🏆`}
-                </button>
+                <div className="game-mode-buttons" role="group" aria-label={t("Game mode")} style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className={`coverage-toggle${state.settings.gameMode === "classic" ? " is-on" : ""}`}
+                    aria-pressed={state.settings.gameMode === "classic"}
+                    disabled={!isGM}
+                    onClick={() => selectGameMode("classic")}
+                  >
+                    {isSolo ? t("Classic") : t("Hide and Seek")} 🏆
+                  </button>
+                  <button
+                    type="button"
+                    className={`coverage-toggle${state.settings.gameMode === "hp" ? " is-on" : ""}`}
+                    aria-pressed={state.settings.gameMode === "hp"}
+                    disabled={!isGM || isSolo}
+                    onClick={() => selectGameMode("hp")}
+                  >
+                    {t("HP Mode")} 🩸
+                  </button>
+                </div>
               </div>
 
               {!isSolo && <div className="setting-row">

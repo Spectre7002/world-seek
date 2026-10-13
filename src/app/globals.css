@@ -583,6 +583,16 @@ button.stepper-btn {
   color: #a7f3d0;
 }
 
+.game-mode-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.game-mode-buttons .coverage-toggle {
+  min-width: 0;
+}
+
 @media (max-width: 760px) {
   .lobby-shell {
     width: calc(100vw - 24px) !important;

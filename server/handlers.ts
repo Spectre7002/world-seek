@@ -252,6 +252,9 @@ export function registerHandlers(io: Server): void {
           if (typeof payload.settings.caseEnabled === "boolean") clean.caseEnabled = payload.settings.caseEnabled;
           if (typeof payload.settings.is1v1 === "boolean") clean.is1v1 = payload.settings.is1v1;
           if (typeof payload.settings.caseOddsMode === "string") clean.caseOddsMode = payload.settings.caseOddsMode;
+          if (clean.gameMode === "hp" && connectedPlayers(s.room).length < 2) {
+            clean.gameMode = "classic";
+          }
 
           Object.assign(s.room.settings, clean);
           saveRoom(s.room);

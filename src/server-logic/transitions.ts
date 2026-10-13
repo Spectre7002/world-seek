@@ -53,7 +53,8 @@ function newPlayer(name: string, isGameMaster: boolean, emoji?: string): Player 
     livePin: null,
     liveView: null,
     totalScore: 0,
-hp: 10000,
+    hp: 10000,
+    guessMultiplier: 1,
   };
 }
 
@@ -161,10 +162,17 @@ export function startGame(room: Room): boolean {
   if (room.phase !== "lobby") return false;
   const connected = connectedPlayers(room);
   if (room.players.length < 2) {
+    if (room.settings.gameMode === "hp") {
+      room.settings.gameMode = "classic";
+    }
     if (connected.length === 1) return startSolo(room);
     return false;
   }
   if (connected.length < 2) return false;
+
+  if (room.settings.gameMode === "hp") {
+    return startHpGame(room);
+  }
 
   room.mode = "multiplayer";
   room.phase = "hiding";
@@ -178,7 +186,34 @@ export function startGame(room: Room): boolean {
     p.livePin = null;
     p.liveView = null;
 p.hp = 10000;
+p.guessMultiplier = 1;
     p.totalScore = 0;
+  }
+
+  function resetRoundPlayers(room: Room): void {
+    for (let i = 0; i < room.players.length; i++) {
+      const p = room.players[i];
+      p.hiding = null;
+      p.hasHidden = false;
+      p.guesses = {};
+      p.livePin = null;
+      p.liveView = null;
+      p.hp = 10000;
+      p.totalScore = 0;
+      p.guessMultiplier = 1;
+    }
+  }
+
+  function startHpGame(room: Room): boolean {
+    room.mode = "solo";
+    room.phase = "finding";
+    room.order = [];
+    room.targets = [];
+    room.currentRound = 0;
+    const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
+    room.targets[0] = getRandomLocation(mapId);
+    resetRoundPlayers(room);
+    return true;
   }
   return true;
 }
@@ -361,6 +396,9 @@ export function nextRound(room: Room): boolean {
 export function returnToLobby(room: Room): boolean {
   room.phase = "lobby";
   room.mode = "multiplayer";
+  if (connectedPlayers(room).length < 2) {
+    room.settings.gameMode = "classic";
+  }
   room.order = [];
   room.targets = [];
   room.currentRound = 0;
@@ -374,6 +412,7 @@ export function returnToLobby(room: Room): boolean {
     p.liveView = null;
     p.totalScore = 0;
 p.hp = 10000;
+p.guessMultiplier = 1;
   }
   return true;
 }
@@ -417,7 +456,6 @@ export function recordSoloGuess(room: Room, playerId: string, at: LatLng): boole
   
   const distanceKm = haversineKm(at, target);
   const points = computeScore(distanceKm, room.settings);
-
   player.guesses[soloTargetKey(room.currentRound)] = {
     lat: at.lat,
     lng: at.lng,
@@ -437,14 +475,56 @@ export function scoreSoloRound(room: Room, playerId: string): boolean {
   const player = findPlayer(room, playerId);
   const g = player?.guesses[soloTargetKey(room.currentRound)];
   if (!player || !g) return false;
-  player.totalScore += g.points;
+  if (room.settings.gameMode === "hp") {
+    const connected = connectedPlayers(room);
+    for (let i = 0; i < connected.length; i++) {
+      const guess = connected[i].guesses[soloTargetKey(room.currentRound)];
+      if (!guess) return false;
+    }
+    let top = connected[0];
+    for (let i = 1; i < connected.length; i++) {
+      const candidate = connected[i];
+      const topGuess = top.guesses[soloTargetKey(room.currentRound)];
+      const candidateGuess = candidate.guesses[soloTargetKey(room.currentRound)];
+      if (candidateGuess && topGuess && candidateGuess.points > topGuess.points) {
+        top = candidate;
+      }
+    }
+    const topGuess = top.guesses[soloTargetKey(room.currentRound)];
+    const multiplier = top.guessMultiplier ?? 1;
+    for (let i = 0; i < connected.length; i++) {
+      const current = connected[i];
+      const guess = current.guesses[soloTargetKey(room.currentRound)];
+      if (!guess || !topGuess) continue;
+      current.totalScore += guess.points;
+      guess.appliedMultiplier = multiplier;
+      if (current.id !== top.id) {
+        guess.damage = Math.max(0, Math.floor((topGuess.points - guess.points) * multiplier));
+        current.hp = Math.max(0, current.hp - guess.damage);
+      } else {
+        guess.damage = 0;
+        top.guessMultiplier += 0.5;
+      }
+    }
+  } else {
+    player.totalScore += g.points;
+  }
   room.phase = "results";
   return true;
 }
 
 export function nextSoloRound(room: Room): boolean {
   if (room.mode !== "solo" || room.phase !== "results") return false;
-  if (room.currentRound + 1 >= room.settings.soloRounds) {
+  if (room.settings.gameMode === "hp" && room.players.some((p) => p.hp <= 0)) {
+    room.phase = "finished";
+    return true;
+  }
+  if (room.settings.gameMode === "hp") {
+    room.currentRound += 1;
+    const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
+    room.targets[room.currentRound] = getRandomLocation(mapId);
+    room.phase = "finding";
+  } else if (room.currentRound + 1 >= room.settings.soloRounds) {
     room.phase = "finished";
   } else {
     room.currentRound += 1;

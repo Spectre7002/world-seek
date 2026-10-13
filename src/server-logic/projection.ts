@@ -32,12 +32,14 @@ function publicPlayer(p: Room["players"][number]): PublicPlayer {
     hasHidden: p.hasHidden,
     hp: p.hp,
     totalScore: p.totalScore,
+    guessMultiplier: p.guessMultiplier,
   };
 }
 
 export function projectFor(room: Room, viewerId: string): PublicState {
   const viewer = findPlayer(room, viewerId);
   const solo = room.mode === "solo";
+  const hpLocationGame = solo && room.settings.gameMode === "hp";
   const targetId = currentTargetId(room);
 
   const players: PublicPlayer[] = [];
@@ -90,6 +92,7 @@ export function projectFor(room: Room, viewerId: string): PublicState {
             distanceKm: g.distanceKm,
             points: g.points,
             damage: g.damage,
+            appliedMultiplier: g.appliedMultiplier,
 	        caseEffect: g.caseEffect,
           });
         }
@@ -128,17 +131,22 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     }
     if (room.phase === "results" && target) {
       const guesses: PublicGuess[] = [];
-      if (viewer && myGuess) {
+      const resultPlayers = hpLocationGame ? connectedPlayers(room) : viewer ? [viewer] : [];
+      for (let i = 0; i < resultPlayers.length; i++) {
+        const player = resultPlayers[i];
+        const guess = player.guesses["solo-" + room.currentRound];
+        if (!guess) continue;
         guesses.push({
-          playerId: viewer.id,
-          name: viewer.name,
-          emoji: viewer.emoji,
-          lat: myGuess.lat,
-          lng: myGuess.lng,
-          distanceKm: myGuess.distanceKm,
-          points: myGuess.points,
-          damage: myGuess.damage,
-	      caseEffect: myGuess.caseEffect,
+          playerId: player.id,
+          name: player.name,
+          emoji: player.emoji,
+          lat: guess.lat,
+          lng: guess.lng,
+          distanceKm: guess.distanceKm,
+          points: guess.points,
+          damage: guess.damage,
+          appliedMultiplier: guess.appliedMultiplier,
+	      caseEffect: guess.caseEffect,
         });
       }
       result = {
@@ -197,7 +205,13 @@ export function projectFor(room: Room, viewerId: string): PublicState {
   const connected = connectedPlayers(room);
   const expected = expectedGuessers(room);
   let guessedCount = 0;
-  if (solo) {
+  if (hpLocationGame) {
+    for (let i = 0; i < connected.length; i++) {
+      if (connected[i].guesses["solo-" + room.currentRound]) {
+        guessedCount++;
+      }
+    }
+  } else if (solo) {
     guessedCount = myGuess ? 1 : 0;
   } else if (targetId) {
     for (let i = 0; i < expected.length; i++) {
@@ -246,7 +260,7 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     youAreTarget: youAreTarget,
     youHaveGuessed: solo ? Boolean(myGuess) : Boolean(targetId && viewer && viewer.guesses[targetId]),
     guessedCount: guessedCount,
-    expectedGuessers: solo ? 1 : expected.length,
+    expectedGuessers: hpLocationGame ? connected.length : solo ? 1 : expected.length,
     livePins: livePins,
     liveViews: liveViews,
 

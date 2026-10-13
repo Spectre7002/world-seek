@@ -44,10 +44,12 @@ export default function ResultsPhase(props: Props) {
   const onNext = props.onNext;
   const caseHint = props.caseHint;
   const result = state.result;
-  const isLast = state.solo 
+  const isHpMode = state.settings.gameMode === "hp";
+  const isLast = isHpMode
+  ? state.players.some((player) => player.hp <= 0)
+  : state.solo
   ? state.currentRound + 1 >= state.totalRounds
   : (state.currentRound + 1 >= state.totalRounds) && (state.subRound !== undefined && state.subRound + 1 >= state.totalSubRounds!);
-  const isHpMode = state.settings.gameMode === "hp" && !state.solo;
 
   if (!result) return <div className="center-screen"><p className="muted">{t("Tallying the round…")}</p></div>;
 
@@ -74,7 +76,11 @@ export default function ResultsPhase(props: Props) {
         <div style={{ padding: 24, overflowY: "auto", background: "var(--bg)", display: "flex", flexDirection: "column", gap: 16 }}>
           
           <div className="stack" style={{ gap: 4 }}>
-            <span className="muted">{t("Round")} {state.currentRound + 1} {t("of")} {state.totalRounds}</span>
+            <span className="muted">
+              {isHpMode
+                ? `${t("Round")} ${state.currentRound + 1} · ${t("Until someone is eliminated")}`
+                : `${t("Round")} ${state.currentRound + 1} ${t("of")} ${state.totalRounds}`}
+            </span>
             <h2 className="title" style={{ fontSize: 22 }}>{t("This round's guesses")}</h2>
           </div>
 
@@ -87,7 +93,10 @@ export default function ResultsPhase(props: Props) {
                   <span className="muted">{formatDistance(g.distanceKm)}</span>
                 </div>
                 {isHpMode ? (
-                  <strong style={{ color: "var(--danger)" }}>-{g.damage?.toLocaleString()} HP</strong>
+                  <strong style={{ color: g.damage ? "var(--danger)" : "var(--good)" }}>
+                    {g.damage ? `-${g.damage.toLocaleString()} HP` : `+${t("Top guess")}`}
+                    {g.appliedMultiplier ? ` · ${g.appliedMultiplier.toFixed(1)}x` : ""}
+                  </strong>
                 ) : (
                   <strong>+{g.points.toLocaleString()}</strong>
                 )}
@@ -98,7 +107,7 @@ export default function ResultsPhase(props: Props) {
           <div className="stack" style={{ gap: 8 }}>
             <strong className="muted">{t("Standings")} {isHpMode ? "(Здоровье)" : "(Очки)"}</strong>
             {state.players.map(p => {
-              const hpPercent = Math.max(0, Math.min(100, (p.hp / 5000) * 100));
+              const hpPercent = Math.max(0, Math.min(100, (p.hp / 10000) * 100));
               return (
                 <div key={p.id} className="player-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
                   <div className="row" style={{ justifyContent: "space-between" }}>
@@ -108,7 +117,7 @@ export default function ResultsPhase(props: Props) {
                     </div>
                     {isHpMode ? (
                       <strong style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        ❤ <AnimatedNumber value={p.hp} />
+                        ❤ <AnimatedNumber value={p.hp} /> · {(p.guessMultiplier ?? 1).toFixed(1)}x
                       </strong>
                     ) : (
                       <strong><AnimatedNumber value={p.totalScore} /></strong>

@@ -320,7 +320,7 @@ export default function FindingPhase(props: Props) {
         <div className="round-streetview">
           <div className="overlay-top overlay-top--emoji">
             {!state.solo && state.currentTarget && <span className="emoji-inline"><img className="emoji-img" src={emojiUrl(state.currentTarget.emoji)} alt="" /></span>}
-            <span>{state.solo ? <>{t("Where in the world is this?")} 🌍 ({roundLabel})</> : <>{t("Where is")} <strong>{state.currentTarget?.name}</strong> {t("hiding?")}</>}</span>
+            <span>{state.solo || state.settings.gameMode === "hp" ? <>{t("Where in the world is this?")} 🌍 ({roundLabel})</> : <>{t("Where is")} <strong>{state.currentTarget?.name}</strong> {t("hiding?")}</>}</span>
           </div>
           <StreetView mode="pano" panoId={state.currentTarget?.panoId} onView={state.solo ? undefined : onView} />
         </div>
@@ -329,8 +329,11 @@ export default function FindingPhase(props: Props) {
           <span>{roundLabel}</span>
           {findingTime > 0 && <Timer seconds={findingTime} onExpire={() => onGuess(guess || { lat: 0, lng: 0 })} />}
 
-          {state.settings.gameMode === "hp" && !state.solo && (
-            <div className="hp-indicator">❤ {state.players.find(p => p.id === state.youId)?.hp || 5000} HP</div>
+          {state.settings.gameMode === "hp" && (
+            <div className="hp-indicator">
+              ❤ {state.players.find(p => p.id === state.youId)?.hp || 10000} HP ·{" "}
+              {(state.players.find(p => p.id === state.youId)?.guessMultiplier ?? 1).toFixed(1)}x
+            </div>
           )}
 
           {caseHint && (

@@ -128,6 +128,7 @@ export interface Guess extends LatLng {
   distanceKm: number;
   points: number;
   damage?: number;
+  appliedMultiplier?: number;
   caseEffect?: { type: string; value: number; text: string };
 }
 
@@ -159,6 +160,7 @@ export interface Player {
   } | null;
   hp: number;
   totalScore: number;
+  guessMultiplier: number;
 }
 
 export interface Room {
@@ -187,6 +189,7 @@ export interface PublicPlayer {
   hasHidden: boolean;
   hp: number;
   totalScore: number;
+  guessMultiplier: number;
 }
 
 export interface CurrentTarget {
@@ -206,6 +209,7 @@ export interface PublicGuess extends LatLng {
   distanceKm: number;
   points: number;
   damage?: number;
+  appliedMultiplier?: number;
   caseEffect?: { type: string; value: number; text: string };
 }
 
