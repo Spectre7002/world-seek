@@ -18,6 +18,9 @@ contains the current maintained implementation of the game.
   single source of truth (clients send intents; the server runs the game and pushes a
   redacted per-player state)
 - 🗺️ **Google Maps + Street View** for hiding and guessing
+- 🎮 **Classic, solo, and HP game modes**, including an optional 1v1 duel flow
+- 🎁 Optional **Special Case** rewards that reveal a randomized location hint
+- 🔮 Optional host-controlled **Cheat Menu** for testing or custom rounds
 - 💬 **Text chat** over Socket.IO, scoped per game
 - 🎙️ **Live voice chat** over peer-to-peer **WebRTC** (mesh of direct connections between
   players) — always-on, push-to-talk, or mute, with a mic device picker and a speaking
@@ -308,6 +311,27 @@ you. Keep it to a single instance.
   Pick **always-on**, **push-to-talk** (hold Space), or **mute**, and choose your mic from the
   device picker in voice settings.
 
+### 🎮 Game modes and lobby options
+
+- **Classic** is the standard points-based hide-and-seek mode. In multiplayer, players hide
+  in turn and the remaining players guess the current target; the score decays with distance.
+- **Solo** is available when only one player is connected. The server selects a Street View
+  location for each round, so no hiding phase is needed.
+- **HP Mode** is a competitive health-based mode for multiplayer. The server selects a target
+  location each round, players see a health bar and guess simultaneously, and damage is based
+  on the difference between the best and weaker guesses. The leading player earns a multiplier;
+  a player reaching zero HP ends the match. The hiding timer and fixed round-count controls
+  are not used in this mode.
+- The host can select global, continent, or country location pools, configure finding timers,
+  and allow unofficial Street View coverage. A room can be shared by copying its link or
+  scanning the lobby QR code.
+- **Special Case** can be enabled with either standard or better odds. Opening a case shows a
+  rarity tier and one hint, such as a continent, hemisphere, latitude/longitude band, or
+  search-radius overlay. The hint is consumed for the current finding round.
+- **Cheats** are disabled by default and are intended for testing or custom games. When the
+  host enables them, the finding screen opens the cheat menu with `End`, allowing a circle,
+  latitude-band, or longitude-band offset around the target.
+
 ### 🔄 Reconnection & join-locking
 
 - A session token is stored in `localStorage` per game. Refresh or reconnect mid-game and you
@@ -320,7 +344,9 @@ you. Keep it to a single instance.
 ```
 server/                 custom Node server (Next + Socket.IO) and event handlers
 src/shared/             types, scoring (haversine + decay), code/token generation — shared
-src/server-logic/       in-memory store, state-machine transitions, per-player projection
+src/server-logic/       in-memory store, state-machine transitions, per-player projection,
+                        map boundaries and usage-budget accounting
+server/caseEngine.ts    Special Case rarity rolls and location-hint generation
 src/lib/                client socket, session storage, useGame hook, Google Maps loader,
                         useTextChat / useVoiceChat hooks
 src/components/         MapPicker, StreetView, the phase screens, TextChat, VoiceChat,
@@ -330,6 +356,25 @@ scripts/smoke.mjs       headless end-to-end test of the full game loop (server m
 scripts/load.mjs        Socket.IO load harness for concurrent rooms (server must be running)
 scripts/multiplayer-capacity.mjs
                         multiplayer capacity benchmark
+scripts/verify-street-view-source.mjs
+                        verifies the configured Street View source
+scripts/api_limits.bat  helper for checking API limits on Windows
+```
+
+## 🔌 HTTP endpoints
+
+The custom server exposes two small JSON endpoints in addition to the Next.js pages and
+Socket.IO transport:
+
+- `GET /api/budget` returns the local monthly Maps admission counter and remaining allowance.
+- `GET /api/road-snap?lat=<latitude>&lng=<longitude>` returns the nearest generated location
+  from the global pool, or a JSON error (`invalid_coordinates` / `not_found`) when no match is
+  available.
+
+For example:
+
+```bash
+curl "http://localhost:3000/api/road-snap?lat=50.45&lng=30.52"
 ```
 
 ## 🧪 Testing the game logic without a browser
@@ -349,6 +394,8 @@ finish → reconnect, asserting the server's behavior (no Maps key needed).
   counter is separate and can persist in the `/data` volume.
 - 🛡️ Anti-cheat is panoId-based (the hider's coords aren't sent to guessers until the reveal),
   which is friendly-game grade, not bulletproof.
+- 🩸 HP Mode is currently server-memory state intended for small matches; it is not a
+  persistent competitive ranking or matchmaking system.
 - ⏱️ Hiding and finding timers are optional and default to unlimited. Without a timer, phases
   advance when everyone has acted; the host can also advance from results.
 
