@@ -146,7 +146,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
 
-  // --- КРАСНЫЕ (COVERT) ---
+// --- КРАСНЫЕ (COVERT) ---
   {
     tier: RARITY_TIERS.COVERT,
     itemName: { ru: "Круг 250 км", en: "250km Circle" },
@@ -168,7 +168,7 @@ const CLASSIC_CASE_ITEMS = [
     itemName: { ru: "Антипод (Противоположная точка)", en: "Antipode (Opposite Point)" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
       const antiLat = -lat;
-      const antiLng = ((lng + 180) % 360 + 360) % 360 - 180;
+      const antiLng = lng > 0 ? lng - 180 : lng + 180;
       return {
         hintTitle: { ru: "Антипод земного шара", en: "Globe Antipode" },
         hintValue: { ru: `Противоположная точка: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°`, en: `Antipode: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°` },

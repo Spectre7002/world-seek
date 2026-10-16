@@ -52,6 +52,79 @@ interface Props {
   caseHint?: any;
 }
 
+// Кэш для файлов геоданных
+let cachedCountriesGeoJson: any = null;
+let cachedContinentsGeoJson: any = null;
+
+async function fetchCountriesGeoJson(): Promise<any> {
+  if (cachedCountriesGeoJson) return cachedCountriesGeoJson;
+  const paths = [
+    "/data/countries.json",
+    "/countries.json",
+    "/data/ne_110m_admin_0_countries.json",
+    "/ne_110m_admin_0_countries.json",
+  ];
+  for (const path of paths) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        cachedCountriesGeoJson = await res.json();
+        return cachedCountriesGeoJson;
+      }
+    } catch {
+      // Игнорируем и пробуем следующий путь
+    }
+  }
+  return null;
+}
+
+async function fetchContinentsGeoJson(): Promise<any> {
+  if (cachedContinentsGeoJson) return cachedContinentsGeoJson;
+  const paths = [
+    "/data/continents.json",
+    "/continents.json",
+  ];
+  for (const path of paths) {
+    try {
+      const res = await fetch(path);
+      if (res.ok) {
+        cachedContinentsGeoJson = await res.json();
+        return cachedContinentsGeoJson;
+      }
+    } catch {
+      // Игнорируем и пробуем следующий путь
+    }
+  }
+  return null;
+}
+
+function pointInRing(pt: [number, number], ring: number[][]): boolean {
+  const x = pt[0], y = pt[1];
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function featureContainsCoords(feature: any, lat: number, lng: number): boolean {
+  if (!feature || !feature.geometry) return false;
+  const geom = feature.geometry;
+  const pt: [number, number] = [lng, lat];
+
+  if (geom.type === "Polygon") {
+    if (!geom.coordinates || !geom.coordinates[0]) return false;
+    return pointInRing(pt, geom.coordinates[0]);
+  } else if (geom.type === "MultiPolygon") {
+    if (!geom.coordinates) return false;
+    return geom.coordinates.some((poly: any) => poly && poly[0] && pointInRing(pt, poly[0]));
+  }
+  return false;
+}
+
 export default function MapPicker({
   value,
   onChange,
@@ -74,15 +147,13 @@ export default function MapPicker({
   const keyedRef = useRef<Map<string, ImageMarker | google.maps.Marker>>(new Map());
   const linesRef = useRef<google.maps.Polyline[]>([]);
   const coverageRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
-  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker | google.maps.Rectangle>>([]); // Сохраняем отрисовки от кейсов
+  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker | google.maps.Rectangle>>([]);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onDragRef = useRef(onDrag);
   onDragRef.current = onDrag;
   const [ready, setReady] = useState(false);
 
-  // Committing the user's pin — a map click or a marker drag release — as
-  // opposed to onDrag, which streams continuously while still mid-drag.
   function commitPin(p: LatLng, zoom: number) {
     playSfx("/click-2.mp3");
     onChangeRef.current?.(p, zoom);
@@ -97,15 +168,13 @@ export default function MapPicker({
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
         minZoom: 2,
-        // Color of the map div behind the tiles — visible in the void past the
-        // edges of the world when zoomed out. Match the water tone so it blends.
         backgroundColor: "#3a4530",
         streetViewControl: false,
         mapTypeControl: false,
         fullscreenControl: false,
         clickableIcons: false,
         gestureHandling: "greedy",
-        styles: [],
+        styles: EARTHY_MAP_STYLE,
       });
       mapRef.current = map;
       if (onChangeRef.current) {
@@ -131,7 +200,7 @@ export default function MapPicker({
     });
   }, [restriction, ready]);
 
-  // --- blue Street View coverage overlay (like Pegman on Google Maps) ---
+  // --- blue Street View coverage overlay ---
   useEffect(() => {
     if (!ready || !mapRef.current || typeof google === "undefined") return;
     if (coverage && !coverageRef.current) {
@@ -143,28 +212,29 @@ export default function MapPicker({
     }
   }, [ready, coverage]);
 
-  // --- snap back to the world view when the caller bumps resetViewKey ---
-  // Only active when the prop is provided (e.g. the per-round guess map), so
-  // maps that manage their own framing (fitToContent results map) are untouched.
+  // --- snap back to default view ---
   useEffect(() => {
     if (!ready || !mapRef.current || resetViewKey === undefined) return;
     mapRef.current.setCenter(DEFAULT_CENTER);
     mapRef.current.setZoom(DEFAULT_ZOOM);
   }, [ready, resetViewKey]);
 
-  // --- Отрисовка подсказок из кейсов ---
+  // --- Отрисовка подсказок из кейсов и читов ---
   useEffect(() => {
     if (!ready || !mapRef.current || typeof google === "undefined") return;
-    
-    // Очищаем старые фигуры
-    caseShapesRef.current.forEach(shape => shape.setMap(null));
+    const map = mapRef.current;
+
+    caseShapesRef.current.forEach((shape) => shape.setMap(null));
     caseShapesRef.current = [];
 
+    map.data.forEach((feature) => {
+      map.data.remove(feature);
+    });
+
     if (caseHint) {
-      const map = mapRef.current;
       const themeColor = caseHint.tierColor || "#eb4b4b";
 
-      // Если выпал круг (радиус поиска)
+      // 1. Если выпал круг (радиус поиска)
       if (caseHint.circle) {
         const circle = new google.maps.Circle({
           map,
@@ -175,22 +245,31 @@ export default function MapPicker({
           strokeColor: themeColor,
           strokeOpacity: 0.8,
           strokeWeight: 2,
-          clickable: false
+          clickable: false,
         });
         caseShapesRef.current.push(circle);
       }
-// Если выпала полоса (широта/долгота) из Чит-меню
+
+      // 2. Если выпала полоса (широта/долгота)
       if (caseHint.band) {
-        const bounds = caseHint.band.axis === "lat"
-           ? { north: caseHint.band.max, south: caseHint.band.min, east: 180, west: -180 }
-           : { north: 90, south: -90, east: caseHint.band.max, west: caseHint.band.min };
+        const bounds =
+          caseHint.band.axis === "lat"
+            ? { north: caseHint.band.max, south: caseHint.band.min, east: 180, west: -180 }
+            : { north: 90, south: -90, east: caseHint.band.max, west: caseHint.band.min };
         const rect = new google.maps.Rectangle({
-          map, bounds, fillColor: themeColor, fillOpacity: 0.15, strokeColor: themeColor, strokeOpacity: 0.8, strokeWeight: 2, clickable: false
+          map,
+          bounds,
+          fillColor: themeColor,
+          fillOpacity: 0.15,
+          strokeColor: themeColor,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          clickable: false,
         });
         caseShapesRef.current.push(rect);
       }
-      // Если выпала подсказка Special (точные координаты)
 
+      // 3. Если выпала точная точка (Special / 5K)
       if (caseHint.exact) {
         const exactMarker = new google.maps.Marker({
           map,
@@ -204,14 +283,177 @@ export default function MapPicker({
             strokeWeight: 2,
           },
           title: "Точная цель (5K)",
-          zIndex: 500
+          zIndex: 500,
         });
         caseShapesRef.current.push(exactMarker);
+      }
+
+      // 4. Если в caseHint передан готовый GeoJSON полигон
+      if (caseHint.geoJson) {
+        const addedFeatures = map.data.addGeoJson(caseHint.geoJson);
+        map.data.setStyle({
+          fillColor: themeColor,
+          fillOpacity: 0.25,
+          strokeColor: themeColor,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          clickable: false,
+        });
+        const bounds = new google.maps.LatLngBounds();
+        addedFeatures.forEach((feat) => {
+          feat.getGeometry()?.forEachLatLng((latLng) => {
+            bounds.extend(latLng);
+          });
+        });
+        if (!bounds.isEmpty()) {
+          map.fitBounds(bounds, 50);
+        }
+      }
+
+      // 5. Подсветка страны из /data/countries.json по ISO коду, названию или координатам (Point-in-Polygon)
+      const countryQuery =
+        typeof caseHint.country === "string"
+          ? caseHint.country
+          : caseHint.country?.code ||
+            caseHint.country?.iso ||
+            caseHint.country?.name ||
+            caseHint.iso ||
+            caseHint.countryCode;
+
+      const isCountryOutline = caseHint.outline === "outline_country" || !!countryQuery;
+
+      if (isCountryOutline && !caseHint.geoJson) {
+        fetchCountriesGeoJson().then((geoJson) => {
+          if (!geoJson || !mapRef.current) return;
+          const targetQuery = countryQuery ? countryQuery.trim().toUpperCase() : null;
+
+          let matchingFeatures: any[] = [];
+
+          if (targetQuery) {
+            matchingFeatures = geoJson.features?.filter((feature: any) => {
+              const props = feature.properties || {};
+              const isoA3 = (props.ISO_A3 || props.ADM0_A3 || props.iso_a3 || props.id || "").toUpperCase();
+              const isoA2 = (props.ISO_A2 || props.iso_a2 || props.code || "").toUpperCase();
+              const name = (props.NAME || props.NAME_LONG || props.ADMIN || props.name || "").toUpperCase();
+              return (
+                isoA3 === targetQuery ||
+                isoA2 === targetQuery ||
+                name === targetQuery ||
+                name.includes(targetQuery)
+              );
+            }) || [];
+          }
+
+          if (matchingFeatures.length === 0 && caseHint.targetCoords) {
+            const { lat, lng } = caseHint.targetCoords;
+            const found = geoJson.features?.find((feature: any) =>
+              featureContainsCoords(feature, lat, lng)
+            );
+            if (found) {
+              matchingFeatures = [found];
+            }
+          }
+
+          if (matchingFeatures.length > 0) {
+            const featureCollection = {
+              type: "FeatureCollection",
+              features: matchingFeatures,
+            };
+
+            const addedFeatures = mapRef.current.data.addGeoJson(featureCollection);
+
+            mapRef.current.data.setStyle({
+              fillColor: themeColor,
+              fillOpacity: 0.25,
+              strokeColor: themeColor,
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              clickable: false,
+            });
+
+            const bounds = new google.maps.LatLngBounds();
+            addedFeatures.forEach((feat) => {
+              feat.getGeometry()?.forEachLatLng((latLng) => {
+                bounds.extend(latLng);
+              });
+            });
+
+            if (!bounds.isEmpty()) {
+              mapRef.current.fitBounds(bounds, 50);
+            }
+          }
+        });
+      }
+
+      // 6. Подсветка континента из /data/continents.json по коду, названию или координатам (Point-in-Polygon)
+      const continentQuery =
+        typeof caseHint.continent === "string"
+          ? caseHint.continent
+          : caseHint.continent?.code ||
+            caseHint.continent?.name ||
+            caseHint.continentCode;
+
+      const isContinentOutline = caseHint.outline === "outline_continent" || !!continentQuery;
+
+      if (isContinentOutline && !caseHint.country && !caseHint.geoJson) {
+        fetchContinentsGeoJson().then((geoJson) => {
+          if (!geoJson || !mapRef.current) return;
+          const targetQuery = continentQuery ? continentQuery.trim().toUpperCase() : null;
+
+          let matchingFeatures: any[] = [];
+
+          if (targetQuery) {
+            matchingFeatures = geoJson.features?.filter((feature: any) => {
+              const props = feature.properties || {};
+              const name = (props.CONTINENT || props.continent || props.NAME || props.name || props.id || "").toUpperCase();
+              return name === targetQuery || name.includes(targetQuery);
+            }) || [];
+          }
+
+          if (matchingFeatures.length === 0 && caseHint.targetCoords) {
+            const { lat, lng } = caseHint.targetCoords;
+            const found = geoJson.features?.find((feature: any) =>
+              featureContainsCoords(feature, lat, lng)
+            );
+            if (found) {
+              matchingFeatures = [found];
+            }
+          }
+
+          if (matchingFeatures.length > 0) {
+            const featureCollection = {
+              type: "FeatureCollection",
+              features: matchingFeatures,
+            };
+
+            const addedFeatures = mapRef.current.data.addGeoJson(featureCollection);
+
+            mapRef.current.data.setStyle({
+              fillColor: themeColor,
+              fillOpacity: 0.2,
+              strokeColor: themeColor,
+              strokeOpacity: 0.8,
+              strokeWeight: 2,
+              clickable: false,
+            });
+
+            const bounds = new google.maps.LatLngBounds();
+            addedFeatures.forEach((feat) => {
+              feat.getGeometry()?.forEachLatLng((latLng) => {
+                bounds.extend(latLng);
+              });
+            });
+
+            if (!bounds.isEmpty()) {
+              mapRef.current.fitBounds(bounds, 40);
+            }
+          }
+        });
       }
     }
   }, [ready, caseHint]);
 
-  // --- sync the user's draggable pin (their emoji when markerIcon is set) ---
+  // --- sync the user's draggable pin ---
   useEffect(() => {
     if (!ready || !mapRef.current || typeof google === "undefined") return;
     const map = mapRef.current;
@@ -226,7 +468,7 @@ export default function MapPicker({
 
     const isEmoji = (m: ImageMarker | google.maps.Marker): m is ImageMarker =>
       "setEmoji" in m;
-    // Tear down if the kind (emoji overlay vs classic pin) no longer matches.
+
     if (
       userMarkerRef.current &&
       isEmoji(userMarkerRef.current) !== !!markerIcon
@@ -266,15 +508,13 @@ export default function MapPicker({
     }
   }, [ready, value, onChange, markerIcon]);
 
-  // --- sync static markers + lines (results) and live id'd markers ---
+  // --- sync static markers + lines and live id'd markers ---
   useEffect(() => {
     if (!ready || !mapRef.current || typeof google === "undefined") return;
     const map = mapRef.current;
 
-    // Build a fresh marker (not yet attached) from a spec.
     const build = (m: MapMarker): ImageMarker | google.maps.Marker => {
       if (m.icon) {
-        // Emoji marker: <img> overlay (animates GIFs, constant footprint).
         return createImageMarker({
           position: { lat: m.lat, lng: m.lng },
           emoji: m.icon,
@@ -304,7 +544,6 @@ export default function MapPicker({
 
     const all = markers ?? [];
 
-    // Plain (un-id'd) markers — results screen — rebuilt wholesale each change.
     extrasRef.current.forEach((m) => m.setMap(null));
     extrasRef.current = [];
     all
@@ -315,8 +554,6 @@ export default function MapPicker({
         extrasRef.current.push(marker);
       });
 
-    // Id'd markers (live pins) — reconciled in place so frequent updates don't
-    // tear down and reload the emoji <img> (which would restart/flicker GIFs).
     const seen = new Set<string>();
     all
       .filter((m): m is MapMarker & { id: string } => m.id != null)

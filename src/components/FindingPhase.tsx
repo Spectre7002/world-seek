@@ -122,7 +122,7 @@ export default function FindingPhase(props: Props) {
 
   const [showCheatMenu, setShowCheatMenu] = useState(false);
   const [cheatLang, setCheatLang] = useState<"ru" | "en">("ru");
-  const [cheatType, setCheatType] = useState<"circle" | "lat" | "lng">("circle");
+  const [cheatType, setCheatType] = useState<"circle" | "lat" | "lng" | "antipode" | "5k" | "outline_continent" | "outline_country">("circle");
   const [cheatValue, setCheatValue] = useState(500);
 
   const lastSent = useRef(0);
@@ -227,7 +227,7 @@ export default function FindingPhase(props: Props) {
 
       hintData.circle = { center: { lat: coords.lat + latOffset, lng: coords.lng + lngOffset }, radiusMeters };
       hintData.hintValue = { ru: `Радиус ${cheatValue} км`, en: `Radius ${cheatValue} km` };
-    } else {
+    } else if (cheatType === "lat" || cheatType === "lng") {
       const widthDegrees = cheatValue;
       const offset = (Math.random() - 0.5) * (widthDegrees * 0.8);
       if (cheatType === "lat") {
@@ -236,6 +236,43 @@ export default function FindingPhase(props: Props) {
       } else {
         hintData.band = { min: coords.lng + offset - widthDegrees / 2, max: coords.lng + offset + widthDegrees / 2, axis: "lng" };
         hintData.hintValue = { ru: `Полоса долготы ${widthDegrees}°`, en: `Lng Band ${widthDegrees}°` };
+      }
+    } else if (cheatType === "antipode") {
+  const antiLat = -coords.lat;
+  const antiLng = coords.lng > 0 ? coords.lng - 180 : coords.lng + 180;
+  
+  hintData.hintTitle = { ru: "Антипод", en: "Antipode" };
+  hintData.hintValue = { 
+    ru: `Противоположная точка: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°`, 
+    en: `Opposite point: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°` 
+  };
+  hintData.circle = { center: { lat: antiLat, lng: antiLng }, radiusMeters: 100000 };
+  hintData.exact = { lat: antiLat, lng: antiLng };
+}
+    } else if (cheatType === "5k") {
+      hintData.hintTitle = { ru: "Точные Координаты (5K)", en: "5K Pinpoint" };
+      hintData.hintValue = { 
+        ru: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`, 
+        en: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` 
+      };
+      hintData.exact = { lat: coords.lat, lng: coords.lng };
+    } else if (cheatType === "outline_continent" || cheatType === "outline_country") {
+      const isContinent = cheatType === "outline_continent";
+      hintData.hintTitle = { 
+        ru: isContinent ? "Обводка континента" : "Обводка страны", 
+        en: isContinent ? "Continent Outline" : "Country Outline" 
+      };
+      hintData.hintValue = { 
+        ru: isContinent ? "Контур континента цели" : "Контур страны цели", 
+        en: isContinent ? "Target Continent Outline" : "Target Country Outline" 
+      };
+      hintData.outline = cheatType;
+      hintData.targetCoords = coords;
+      if ((state.currentTarget as any)?.country) {
+        hintData.country = (state.currentTarget as any).country;
+      }
+      if ((state.currentTarget as any)?.continent) {
+        hintData.continent = (state.currentTarget as any).continent;
       }
     }
 
@@ -359,13 +396,19 @@ export default function FindingPhase(props: Props) {
                 <option value="circle">{tCheat("Круг (Радиус)", "Circle (Radius)")}</option>
                 <option value="lat">{tCheat("Широта (Latitude)", "Latitude Band")}</option>
                 <option value="lng">{tCheat("Долгота (Longitude)", "Longitude Band")}</option>
+                <option value="antipode">{tCheat("Антипод", "Antipode")}</option>
+                <option value="5k">{tCheat("Точная цель (5K)", "5K Pinpoint")}</option>
+                <option value="outline_continent">{tCheat("Обводка (Континент)", "Outline (Continent)")}</option>
+                <option value="outline_country">{tCheat("Обводка (Страна)", "Outline (Country)")}</option>
               </select>
             </div>
 
-            <div className="setting-row" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              <label style={{ fontWeight: 500 }}>{cheatType === "circle" ? tCheat("Ширина в КМ", "Width in KM") : tCheat("Ширина в градусах", "Width in Degrees")}</label>
-              <input type="number" value={cheatValue} onChange={(e) => setCheatValue(Number(e.target.value))} style={{ padding: "10px", background: "var(--bg-elev-2)", color: "#fff", border: "1px solid var(--border-color)", borderRadius: "6px" }} />
-            </div>
+            {(cheatType === "circle" || cheatType === "lat" || cheatType === "lng") && (
+              <div className="setting-row" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                <label style={{ fontWeight: 500 }}>{cheatType === "circle" ? tCheat("Ширина в КМ", "Width in KM") : tCheat("Ширина в градусах", "Width in Degrees")}</label>
+                <input type="number" value={cheatValue} onChange={(e) => setCheatValue(Number(e.target.value))} style={{ padding: "10px", background: "var(--bg-elev-2)", color: "#fff", border: "1px solid var(--border-color)", borderRadius: "6px" }} />
+              </div>
+            )}
 
             <p className="muted" style={{ fontSize: "0.8rem", lineHeight: 1.4, margin: 0 }}>
               {tCheat("* Локация будет смещена от центра зоны случайным образом.", "* Target will be randomly offset from the center.")}
