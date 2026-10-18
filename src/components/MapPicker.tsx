@@ -147,7 +147,7 @@ export default function MapPicker({
   const keyedRef = useRef<Map<string, ImageMarker | google.maps.Marker>>(new Map());
   const linesRef = useRef<google.maps.Polyline[]>([]);
   const coverageRef = useRef<google.maps.StreetViewCoverageLayer | null>(null);
-  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker | google.maps.Rectangle>>([]);
+  const caseShapesRef = useRef<Array<google.maps.Circle | google.maps.Marker | google.maps.Rectangle | google.maps.Polyline>>([]);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onDragRef = useRef(onDrag);
@@ -168,7 +168,7 @@ export default function MapPicker({
         center: DEFAULT_CENTER,
         zoom: DEFAULT_ZOOM,
         minZoom: 2,
-        backgroundColor: "#3a4530",
+        backgroundColor: "#f5f5f5",
         streetViewControl: false,
         mapTypeControl: false,
         fullscreenControl: false,

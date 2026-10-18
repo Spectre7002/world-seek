@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import type { LatLng, LiveView, PublicPlayer, PublicState } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
 import MapPicker, { type MapMarker } from "./MapPicker";
@@ -17,6 +17,7 @@ interface Props {
   onView: (view: StreetViewCam) => void;
   onOpenCase: () => Promise<{ ok: boolean; hint?: any }>;
   onCaseOpened?: (hint: any) => void;
+  onShareCaseHint?: (hint: any) => void;
 }
 
 const PREVIEW_THROTTLE_MS = 100;
@@ -33,8 +34,6 @@ const ROULETTE_POOL = [
   { name: { ru: "Точная Широта", en: "Exact Latitude" }, color: "#d32ce6" },
   { name: { ru: "Точная Долгота", en: "Exact Longitude" }, color: "#d32ce6" },
   { name: { ru: "Круг 250 км", en: "250km Circle" }, color: "#eb4b4b" },
-  { name: { ru: "Антипод", en: "Antipode" }, color: "#eb4b4b" },
-  { name: { ru: "5K Pinpoint", en: "5K Pinpoint" }, color: "#ffd700" }
 ];
 
 function PlayerBar({ player, state, side }: { player: PublicPlayer; state: PublicState; side: "left" | "right" }) {
@@ -100,6 +99,184 @@ function HpBattleHud({ state }: { state: PublicState }) {
   );
 }
 
+// Продвинутый режим наблюдения за другими (Демка)
+function WatchView({
+  roundLabel,
+  title,
+  emptyHint,
+  markers,
+  views,
+  current,
+  total,
+  players,
+  excludePlayerId,
+  state
+}: {
+  roundLabel: string;
+  title: string;
+  emptyHint: string;
+  markers: MapMarker[];
+  views: LiveView[];
+  current: number;
+  total: number;
+  players: PublicPlayer[];
+  excludePlayerId?: string;
+  state: PublicState;
+}) {
+  const { t } = useLanguage();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [watchRoulette, setWatchRoulette] = useState(false);
+  const [watchedCaseHint, setWatchedCaseHint] = useState<any>(null);
+
+  const availableHunters = players.filter(p => p.id !== excludePlayerId && p.connected);
+
+  useEffect(() => {
+    if (!activeId && availableHunters.length > 0) {
+      setActiveId(availableHunters[0].id);
+    } else if (activeId && !availableHunters.find(h => h.id === activeId)) {
+      setActiveId(availableHunters.length > 0 ? availableHunters[0].id : null);
+    }
+  }, [activeId, availableHunters]);
+
+  const activeView = views.find(v => v.playerId === activeId);
+  
+  const fallbackView = useMemo(() => {
+    if (!state.currentTarget) return null;
+    return {
+      panoId: state.currentTarget.panoId,
+      heading: state.currentTarget.heading || 0,
+      pitch: state.currentTarget.pitch || 0,
+      zoom: 1
+    };
+  }, [state.currentTarget]);
+
+  const viewToRender = activeView || fallbackView;
+
+  useEffect(() => {
+    if (!state.liveCase) return;
+    setWatchRoulette(true);
+    setWatchedCaseHint(null);
+    const timer = window.setTimeout(() => {
+      setWatchRoulette(false);
+      setWatchedCaseHint(state.liveCase?.hint ?? null);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [state.liveCase]);
+
+  const watchedRouletteItems = useMemo(() => {
+    if (!state.liveCase) return [];
+    return Array.from({ length: 60 }, (_, index) => ({
+      name: index === 45
+        ? state.liveCase!.hint.itemName
+        : ROULETTE_POOL[index % ROULETTE_POOL.length].name,
+      color: index === 45
+        ? state.liveCase!.hint.tierColor
+        : ROULETTE_POOL[index % ROULETTE_POOL.length].color,
+      isWinner: index === 45,
+    }));
+  }, [state.liveCase]);
+
+  return (
+    <div className="full-bleed">
+      <div className="round-play">
+        <div className="round-streetview watch-view">
+          
+          <div className="watch-target-heading" style={{ zIndex: 10 }}>
+            <strong>{title}</strong>
+            <span>{emptyHint}</span>
+          </div>
+
+          {viewToRender ? (
+            <StreetView
+              // Ключ принудительно перерисовывает панораму при смене игрока или локации в демке
+              key={activeId ? `view-${activeId}-${viewToRender.panoId}` : `fallback-${viewToRender.panoId}`}
+              mode="pano"
+              panoId={viewToRender.panoId}
+              follow={viewToRender}
+              interactive={false}
+            />
+          ) : (
+            <div className="hiding-preview-prompt">
+              {availableHunters.length > 0
+                ? t("Loading hunter's Street View…")
+                : emptyHint}
+            </div>
+          )}
+
+          {watchRoulette && (
+            <div className="roulette-overlay">
+              <div className="roulette-window">
+                <div className="roulette-pointer">▼</div>
+                <div
+                  className="roulette-strip"
+                  style={{
+                    animationDuration: "5s",
+                    ["--roulette-stop-index" as string]: 45,
+                    ["--roulette-stop-offset" as string]: "0px",
+                  }}
+                >
+                  {watchedRouletteItems.map((item, index) => (
+                    <div
+                      key={index}
+                      className={`roulette-card${item.isWinner ? " winner" : ""}`}
+                      style={{ borderBottom: `4px solid ${item.color}` }}
+                    >
+                      <span style={{ color: item.color }}>
+                        {item.name.ru || item.name.en}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          <div className="roster" role="status" style={{ bottom: "20px", top: "auto" }}>
+            <div className="roster-head">
+              <span>{t("Watching")}</span>
+            </div>
+            <div className="roster-list">
+              {availableHunters.map(p => {
+                const isWatching = activeId === p.id;
+                const hasGuessed = state.livePins.some(lp => lp.playerId === p.id && lp.confirmed) ||
+                                   (state.result && state.result.guesses.some(g => g.playerId === p.id));
+                
+                return (
+                  <button
+                    key={p.id}
+                    className={`roster-player ${hasGuessed ? "is-hidden" : "is-waiting"} ${isWatching ? "is-selected" : ""}`}
+                    onClick={() => setActiveId(p.id)}
+                    style={{
+                      width: "100%", textAlign: "left", cursor: "pointer",
+                      border: "none", background: isWatching ? "var(--bg-elev-2)" : "transparent"
+                    }}
+                  >
+                    <span className="roster-avatar" aria-hidden="true">
+                      <img className="emoji-img" src={emojiUrl(p.emoji)} alt="" />
+                    </span>
+                    <span className="roster-name">{p.name}</span>
+                    <span className="roster-status">
+                      {hasGuessed ? t("hidden") : isWatching ? t("Watching") : t("picking…")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <FloatingMap title={t("Guesses")} className="hiding-map-window">
+          <MapPicker markers={markers} fitToContent={false} caseHint={watchedCaseHint} />
+        </FloatingMap>
+      </div>
+
+      <div className="overlay-bar">
+        <WaitingBar label={t("Guesses in") || "Guesses in"} current={current} total={total} />
+      </div>
+    </div>
+  );
+}
+
 export default function FindingPhase(props: Props) {
   const { language, t } = useLanguage();
   const lang = language;
@@ -139,18 +316,6 @@ export default function FindingPhase(props: Props) {
     props.onCaseOpened?.(null);
     if (trailing.current) clearTimeout(trailing.current);
   }, [state.currentRound]);
-
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (!state.settings.cheatsEnabled || !state.currentTarget?.realCoords || caseHint) return;
-      if (e.code === "End") {
-        e.preventDefault();
-        setShowCheatMenu((prev) => !prev);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [state.settings.cheatsEnabled, state.currentTarget?.realCoords, caseHint]);
 
   const sendPreview = useCallback((at: LatLng) => {
     const wait = PREVIEW_THROTTLE_MS - (Date.now() - lastSent.current);
@@ -238,19 +403,17 @@ export default function FindingPhase(props: Props) {
         hintData.hintValue = { ru: `Полоса долготы ${widthDegrees}°`, en: `Lng Band ${widthDegrees}°` };
       }
     } else if (cheatType === "antipode") {
-  const antiLat = -coords.lat;
-  const antiLng = coords.lng > 0 ? coords.lng - 180 : coords.lng + 180;
-  
-  hintData.hintTitle = { ru: "Антипод", en: "Antipode" };
-  hintData.hintValue = { 
-    ru: `Противоположная точка: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°`, 
-    en: `Opposite point: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°` 
-  };
-  hintData.circle = { center: { lat: antiLat, lng: antiLng }, radiusMeters: 100000 };
-  hintData.exact = { lat: antiLat, lng: antiLng };
-}
+      const mirrorLat = -coords.lat;
+      
+      hintData.hintTitle = { ru: "Зеркало экватора", en: "Equator Mirror" };
+      hintData.hintValue = { 
+        ru: `Широта: ${mirrorLat.toFixed(2)}°, долгота без изменений: ${coords.lng.toFixed(2)}°`, 
+        en: `Latitude: ${mirrorLat.toFixed(2)}°, longitude unchanged: ${coords.lng.toFixed(2)}°` 
+      };
+      hintData.circle = { center: { lat: mirrorLat, lng: coords.lng }, radiusMeters: 100000 };
+      hintData.exact = { lat: mirrorLat, lng: coords.lng };
     } else if (cheatType === "5k") {
-      hintData.hintTitle = { ru: "Точные Координаты (5K)", en: "5K Pinpoint" };
+      hintData.hintTitle = { ru: "Точные координаты (5K)", en: "Exact Coordinates (5K)" };
       hintData.hintValue = { 
         ru: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`, 
         en: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` 
@@ -278,23 +441,64 @@ export default function FindingPhase(props: Props) {
 
     setCaseHint(hintData);
     props.onCaseOpened?.(hintData);
+    props.onShareCaseHint?.(hintData);
     setShowCheatMenu(false);
   }
 
   const liveMarkers: MapMarker[] = state.livePins.map(g => ({
-    id: g.playerId, lat: g.lat, lng: g.lng, icon: g.emoji, opacity: g.confirmed ? 1 : TENTATIVE_OPACITY, title: g.name
+    id: g.playerId, 
+    lat: g.lat, 
+    lng: g.lng, 
+    icon: g.emoji, 
+    opacity: g.confirmed ? 1 : TENTATIVE_OPACITY, 
+    title: g.name
   }));
+
+  if (state.youAreTarget && state.yourSpot) {
+    liveMarkers.unshift({
+      id: "my-hiding-spot",
+      lat: state.yourSpot.lat,
+      lng: state.yourSpot.lng,
+      icon: state.youEmoji,
+      opacity: 1,
+      title: t("Your hiding spot"),
+    });
+  }
 
   if (state.youAreTarget || state.youHaveGuessed) {
     return (
       <>
         {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
-        <WatchView roundLabel={roundLabel} title={state.youAreTarget ? t("Everyone's hunting for you 🔎") : t("Guess locked in ✅")} emptyHint={t("Waiting for the others.")} markers={liveMarkers} views={state.liveViews} current={state.guessedCount} total={state.expectedGuessers} players={state.players} excludePlayerId={state.youAreTarget ? state.youId : state.currentTarget?.id} />
+        <WatchView 
+          roundLabel={roundLabel} 
+          title={state.youAreTarget ? t("Everyone's hunting for you 🔎") : t("Guess locked in ✅")} 
+          emptyHint={t("Waiting for the others.")} 
+          markers={liveMarkers} 
+          views={state.liveViews} 
+          current={state.guessedCount} 
+          total={state.expectedGuessers} 
+          players={state.players} 
+          excludePlayerId={state.youAreTarget ? state.youId : state.currentTarget?.id} 
+          state={state}
+        />
       </>
     );
   }
 
-  const findingTime = state.settings.findingTimeLimit || 0;
+  const baseFindingTime = state.settings.findingTimeLimit || 0;
+  let urgentSecondsLeft: number | null = null;
+  
+  if (
+    state.settings.gameMode === "hp" &&
+    state.firstGuessTime !== null &&
+    state.firstGuessTime !== undefined &&
+    !state.youHaveGuessed
+  ) {
+    const elapsed = Math.floor((Date.now() - state.firstGuessTime) / 1000);
+    urgentSecondsLeft = Math.max(0, 15 - elapsed);
+  }
+  
+  const findingTime = urgentSecondsLeft !== null ? urgentSecondsLeft : baseFindingTime;
 
   return (
     <div className="full-bleed">
@@ -305,7 +509,7 @@ export default function FindingPhase(props: Props) {
             onClick={() => setShowCheatMenu(true)}
             style={{ background: "gold", color: "black", padding: "12px 18px", border: "2px solid #000", borderRadius: 8, cursor: "pointer", fontWeight: "bold", boxShadow: "0 4px 12px rgba(0,0,0,0.4)" }}
           >
-            🔮 {t("Cheats")} (End)
+            🔮 {t("Cheats")}
           </button>
         )}
 
@@ -396,8 +600,8 @@ export default function FindingPhase(props: Props) {
                 <option value="circle">{tCheat("Круг (Радиус)", "Circle (Radius)")}</option>
                 <option value="lat">{tCheat("Широта (Latitude)", "Latitude Band")}</option>
                 <option value="lng">{tCheat("Долгота (Longitude)", "Longitude Band")}</option>
-                <option value="antipode">{tCheat("Антипод", "Antipode")}</option>
-                <option value="5k">{tCheat("Точная цель (5K)", "5K Pinpoint")}</option>
+                <option value="antipode">{tCheat("Зеркало экватора", "Equator Mirror")}</option>
+                <option value="5k">{tCheat("Точные координаты (5K)", "Exact Coordinates (5K)")}</option>
                 <option value="outline_continent">{tCheat("Обводка (Континент)", "Outline (Continent)")}</option>
                 <option value="outline_country">{tCheat("Обводка (Страна)", "Outline (Country)")}</option>
               </select>
@@ -424,12 +628,17 @@ export default function FindingPhase(props: Props) {
 
       <div className="round-play">
         {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
+        
         <div className="round-streetview">
           <div className="overlay-top overlay-top--emoji">
             {!state.solo && state.currentTarget && <span className="emoji-inline"><img className="emoji-img" src={emojiUrl(state.currentTarget.emoji)} alt="" /></span>}
             <span>{state.solo || state.settings.gameMode === "hp" ? <>{t("Where in the world is this?")} 🌍 ({roundLabel})</> : <>{t("Where is")} <strong>{state.currentTarget?.name}</strong> {t("hiding?")}</>}</span>
           </div>
-          <StreetView mode="pano" panoId={state.currentTarget?.panoId} onView={state.solo ? undefined : onView} />
+          <StreetView 
+            mode="pano" 
+            panoId={state.currentTarget?.panoId} 
+            onView={state.solo ? undefined : onView} 
+          />
         </div>
 
         <div className="round-hud" style={{ flexWrap: "wrap" }}>
@@ -445,7 +654,15 @@ export default function FindingPhase(props: Props) {
         </div>
 
         <FloatingMap title={t("Move the map and place your guess")} className="guess-map-window">
-          <MapPicker value={guess} onChange={(p) => { setGuess(p); sendPreview(p); }} onDrag={sendPreview} markerIcon={state.youEmoji} resetViewKey={state.currentRound} caseHint={caseHint} />
+          <MapPicker 
+            value={guess} 
+            onChange={(p) => { setGuess(p); sendPreview(p); }} 
+            onDrag={sendPreview} 
+            markerIcon={state.youEmoji} 
+            resetViewKey={state.currentRound} 
+            caseHint={caseHint}
+            markers={liveMarkers}
+          />
         </FloatingMap>
       </div>
 
@@ -456,8 +673,4 @@ export default function FindingPhase(props: Props) {
       </div>
     </div>
   );
-}
-
-function WatchView(props: any) {
-  return <div className="full-bleed"><div className="round-play"><div className="round-streetview watch-view"><div className="watch-target-heading"><strong>{props.title}</strong><span>{props.emptyHint}</span></div></div><FloatingMap title="Guesses"><MapPicker markers={props.markers} /></FloatingMap></div><div className="overlay-bar"><WaitingBar label="Guesses in" current={props.current} total={props.total} /></div></div>;
 }

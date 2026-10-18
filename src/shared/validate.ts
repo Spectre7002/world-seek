@@ -21,16 +21,17 @@ export function isValidLatLng(v: unknown): v is LatLng {
 
 export function isValidLiveView(
   v: unknown,
-): v is { panoId: string; heading: number; pitch: number; zoom: number } {
+): v is { panoId: string; heading: number; pitch: number; zoom?: number } {
   if (typeof v !== "object" || v === null) return false;
   const o = v as Record<string, unknown>;
+  const zoomOk = o.zoom === undefined || isFiniteInRange(o.zoom, 0, 5);
   return (
     typeof o.panoId === "string" &&
     o.panoId.length > 0 &&
     o.panoId.length <= 256 &&
     isFiniteInRange(o.heading, -720, 720) &&
     isFiniteInRange(o.pitch, -90, 90) &&
-    isFiniteInRange(o.zoom, 0, 5)
+    zoomOk
   );
 }
 
@@ -38,13 +39,13 @@ export function pickLiveView(v: {
   panoId: string;
   heading: number;
   pitch: number;
-  zoom: number;
+  zoom?: number;
 }): { panoId: string; heading: number; pitch: number; zoom: number } {
   return {
     panoId: v.panoId,
-    heading: v.heading,
-    pitch: v.pitch,
-    zoom: v.zoom,
+    heading: typeof v.heading === "number" && Number.isFinite(v.heading) ? v.heading : 0,
+    pitch: typeof v.pitch === "number" && Number.isFinite(v.pitch) ? v.pitch : 0,
+    zoom: typeof v.zoom === "number" && Number.isFinite(v.zoom) ? v.zoom : 1,
   };
 }
 

@@ -9,6 +9,7 @@ import type {
   JoinError,
   LatLng,
   LiveView,
+  LiveCase,
   PeekAck,
   PublicState,
   ReconnectAck,
@@ -102,6 +103,13 @@ export function useGame(code: string) {
         });
       }
 
+      function onLiveCase(liveCase: LiveCase) {
+        setState(function (current) {
+          if (!current || current.phase !== "finding") return current;
+          return { ...current, liveCase: liveCase };
+        });
+      }
+
       function onConnect() {
         setConnected(true);
         reseat();
@@ -119,6 +127,7 @@ export function useGame(code: string) {
 
       socket.on("state", onState);
       socket.on("view:live", onLiveView);
+      socket.on("case:live", onLiveCase);
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
       socket.on("game:closed", onClosed);
@@ -131,6 +140,7 @@ export function useGame(code: string) {
       return function () {
         socket.off("state", onState);
         socket.off("view:live", onLiveView);
+          socket.off("case:live", onLiveCase);
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
         socket.off("game:closed", onClosed);
@@ -244,6 +254,11 @@ export function useGame(code: string) {
     if (socket.connected && seated.current) socket.emit("view:sync", view);
   }, []);
 
+  const shareCaseHint = useCallback(function (hint: unknown) {
+    const socket = getSocket();
+    if (socket.connected && seated.current) socket.emit("case:share", hint);
+  }, []);
+
   const nextRound = useCallback(
     function () {
       dispatch("round:next");
@@ -301,6 +316,7 @@ export function useGame(code: string) {
     guess: guess,
     previewGuess: previewGuess,
     syncView: syncView,
+    shareCaseHint: shareCaseHint,
     nextRound: nextRound,
     returnToLobby: returnToLobby,
     leave: leave,

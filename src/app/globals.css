@@ -935,7 +935,7 @@ button.stepper-btn {
 
 .watch-target-heading {
   position: absolute;
-  top: 16px;
+  top: 88px;
   left: 16px;
   z-index: 30;
   display: flex;
@@ -1057,7 +1057,7 @@ button.stepper-btn {
     left: auto;
   }
   .watch-target-heading {
-    top: 100px;
+    top: 104px;
     left: 10px;
     max-width: calc(100vw - 20px);
   }

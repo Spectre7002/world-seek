@@ -210,6 +210,7 @@ p.guessMultiplier = 1;
     room.order = [];
     room.targets = [];
     room.currentRound = 0;
+    room.firstGuessTime = null;
     const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
     room.targets[0] = getRandomLocation(mapId);
     resetRoundPlayers(room);
@@ -280,16 +281,33 @@ export function recordGuess(room: Room, guesserId: string, at: LatLng): boolean 
 
   guesser.guesses[targetId] = { lat: at.lat, lng: at.lng, distanceKm: distanceKm, points: points, damage: damage };
   guesser.livePin = null;
+  guesser.liveView = null;
+
+  // HP mode: record the timestamp of the FIRST guess so other players' timers can be capped to 15s.
+  if (room.settings.gameMode === "hp" && !room.firstGuessTime) {
+    room.firstGuessTime = Date.now();
+  }
+
   return true;
 }
 
 export function recordLivePin(room: Room, guesserId: string, at: LatLng): boolean {
   if (room.phase !== "finding") return false;
+  const guesser = findPlayer(room, guesserId);
+  if (!guesser) return false;
+
+  // HP mode: use sentinel "hp" as targetId for live pins
+  if (room.settings.gameMode === "hp") {
+    const soloKey = "solo-" + room.currentRound;
+    if (guesser.guesses[soloKey]) return false; // already guessed
+    guesser.livePin = { targetId: "hp", lat: at.lat, lng: at.lng };
+    return true;
+  }
+
   const targetId = currentTargetId(room);
   if (!targetId || guesserId === targetId) return false;
-  const guesser = findPlayer(room, guesserId);
   const target = findPlayer(room, targetId);
-  if (!guesser || !target || !target.hiding) return false;
+  if (!target || !target.hiding) return false;
   if (guesser.guesses[targetId]) return false;
   guesser.livePin = { targetId: targetId, lat: at.lat, lng: at.lng };
   return true;
@@ -301,11 +319,30 @@ export function recordLiveView(
   view: { panoId: string; heading: number; pitch: number; zoom: number },
 ): boolean {
   if (room.phase !== "finding") return false;
+  const guesser = findPlayer(room, guesserId);
+  if (!guesser) return false;
+
+  // HP mode: all players guess a shared anonymous location.
+  // Store the view without requiring a target player.
+  if (room.settings.gameMode === "hp") {
+    // Only store view for players who haven't guessed yet (still active hunters).
+    const soloKey = "solo-" + room.currentRound;
+    if (guesser.guesses[soloKey]) return false; // already guessed, no need to sync
+    guesser.liveView = {
+      targetId: "hp", // sentinel value for HP mode
+      panoId: view.panoId,
+      heading: view.heading,
+      pitch: view.pitch,
+      zoom: view.zoom,
+    };
+    return true;
+  }
+
+  // Classic mode: guessing against a specific hider.
   const targetId = currentTargetId(room);
   if (!targetId || guesserId === targetId) return false;
-  const guesser = findPlayer(room, guesserId);
   const target = findPlayer(room, targetId);
-  if (!guesser || !target || !target.hiding) return false;
+  if (!target || !target.hiding) return false;
   if (guesser.guesses[targetId]) return false;
   guesser.liveView = {
     targetId: targetId,
@@ -403,6 +440,7 @@ export function returnToLobby(room: Room): boolean {
   room.targets = [];
   room.currentRound = 0;
   room.cycleCount = 1;
+  room.firstGuessTime = null;
   for (let i = 0; i < room.players.length; i++) {
     const p = room.players[i];
     p.hiding = null;
@@ -462,6 +500,14 @@ export function recordSoloGuess(room: Room, playerId: string, at: LatLng): boole
     distanceKm: distanceKm,
     points: points,
   };
+  player.livePin = null;
+  player.liveView = null;
+
+  // HP mode: record the timestamp of the FIRST guess so other players' timers can be capped to 15s.
+  if (room.settings.gameMode === "hp" && !room.firstGuessTime) {
+    room.firstGuessTime = Date.now();
+  }
+
   return true;
 }
 
@@ -523,7 +569,12 @@ export function nextSoloRound(room: Room): boolean {
     room.currentRound += 1;
     const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
     room.targets[room.currentRound] = getRandomLocation(mapId);
+    room.firstGuessTime = null; // reset for new round
     room.phase = "finding";
+    for (let i = 0; i < room.players.length; i++) {
+      room.players[i].liveView = null;
+      room.players[i].livePin = null;
+    }
   } else if (room.currentRound + 1 >= room.settings.soloRounds) {
     room.phase = "finished";
   } else {
@@ -531,6 +582,10 @@ export function nextSoloRound(room: Room): boolean {
     const mapId = isAvailableMap(room.settings.selectedMap) ? room.settings.selectedMap : "global";
     room.targets[room.currentRound] = getRandomLocation(mapId);
     room.phase = "finding";
+    for (let i = 0; i < room.players.length; i++) {
+      room.players[i].liveView = null;
+      room.players[i].livePin = null;
+    }
   }
   return true;
 }

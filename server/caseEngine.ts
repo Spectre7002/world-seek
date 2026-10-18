@@ -165,15 +165,14 @@ const CLASSIC_CASE_ITEMS = [
   },
   {
     tier: RARITY_TIERS.COVERT,
-    itemName: { ru: "Антипод (Противоположная точка)", en: "Antipode (Opposite Point)" },
+    itemName: { ru: "Зеркало экватора", en: "Equator Mirror" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
-      const antiLat = -lat;
-      const antiLng = lng > 0 ? lng - 180 : lng + 180;
+      const mirrorLat = -lat;
       return {
-        hintTitle: { ru: "Антипод земного шара", en: "Globe Antipode" },
-        hintValue: { ru: `Противоположная точка: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°`, en: `Antipode: ${antiLat.toFixed(2)}°, ${antiLng.toFixed(2)}°` },
-        circle: { center: { lat: antiLat, lng: antiLng }, radiusMeters: 100000 },
-        exact: { lat: antiLat, lng: antiLng }
+        hintTitle: { ru: "Зеркальная точка относительно экватора", en: "Point Mirrored Across the Equator" },
+        hintValue: { ru: `Широта: ${mirrorLat.toFixed(2)}°, долгота без изменений: ${lng.toFixed(2)}°`, en: `Latitude: ${mirrorLat.toFixed(2)}°, longitude unchanged: ${lng.toFixed(2)}°` },
+        circle: { center: { lat: mirrorLat, lng }, radiusMeters: 100000 },
+        exact: { lat: mirrorLat, lng }
       };
     }
   },
@@ -181,10 +180,10 @@ const CLASSIC_CASE_ITEMS = [
   // --- ЗОЛОТО (SPECIAL) ---
   {
     tier: RARITY_TIERS.SPECIAL,
-    itemName: { ru: "5K Pinpoint (Точные Координаты)", en: "5K Pinpoint (Exact Coords)" },
+    itemName: { ru: "Точные координаты (5K)", en: "Exact Coordinates (5K)" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
       return {
-        hintTitle: { ru: "Точные Координаты (5K)", en: "Exact Location (5K)" },
+        hintTitle: { ru: "Точные координаты (5K)", en: "Exact Coordinates (5K)" },
         hintValue: { ru: `${lat.toFixed(5)}, ${lng.toFixed(5)}`, en: `${lat.toFixed(5)}, ${lng.toFixed(5)}` },
         exact: { lat, lng }
       };

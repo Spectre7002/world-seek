@@ -93,6 +93,9 @@ export default function StreetView(props: Props) {
   const linksByPanoRef = useRef(new Map<string, google.maps.StreetViewLink[]>());
   const skippedHistoryPanoRef = useRef<string | null>(null);
   const programmaticPanosRef = useRef(new Set<string>());
+  const followPanoIdRef = useRef<string | null>(null);
+  const followRef = useRef<StreetViewCam | null>(follow ?? null);
+  followRef.current = follow ?? null;
 
   const [ready, setReady] = useState(false);
   const [heading, setHeading] = useState(0);
@@ -267,6 +270,30 @@ export default function StreetView(props: Props) {
         google.maps.event.clearInstanceListeners(prefetchPano);
       };
 
+      function applyFollowCamera() {
+        const currentFollow = followRef.current;
+        if (!currentFollow || pano.getPano() !== currentFollow.panoId) return;
+
+        const h =
+          typeof currentFollow.heading === "number" &&
+          Number.isFinite(currentFollow.heading)
+            ? currentFollow.heading
+            : 0;
+        const p =
+          typeof currentFollow.pitch === "number" &&
+          Number.isFinite(currentFollow.pitch)
+            ? currentFollow.pitch
+            : 0;
+        pano.setPov({ heading: h, pitch: p });
+        if (
+          typeof currentFollow.zoom === "number" &&
+          Number.isFinite(currentFollow.zoom)
+        ) {
+          pano.setZoom(currentFollow.zoom);
+        }
+        setHeading(h);
+      }
+
       pano.addListener("position_changed", function () {
         const position = pano.getPosition();
         lastPositionRef.current = position;
@@ -294,6 +321,15 @@ export default function StreetView(props: Props) {
           programmaticPanosRef.current.delete(id);
           lastPanoRef.current = id;
           onPanoChanged.current(id);
+          applyFollowCamera();
+          emitView(pano);
+        }
+      });
+
+      pano.addListener("status_changed", function () {
+        if (pano.getStatus() === google.maps.StreetViewStatus.OK) {
+          applyFollowCamera();
+          emitView(pano);
         }
       });
 
@@ -346,6 +382,7 @@ export default function StreetView(props: Props) {
       linksByPanoRef.current.clear();
       skippedHistoryPanoRef.current = null;
       programmaticPanosRef.current.clear();
+      followPanoIdRef.current = null;
       setPanoHistory([]);
     },
     [mode, position?.lat, position?.lng, panoId]
@@ -365,16 +402,31 @@ export default function StreetView(props: Props) {
 
   useEffect(
     function () {
-      if (!ready || !panoRef.current || !follow) return;
+      if (!ready || !panoRef.current || !follow) {
+        if (!follow) followPanoIdRef.current = null;
+        return;
+      }
       const pano = panoRef.current;
       applyingFollow.current = true;
-      if (follow.panoId && pano.getPano() !== follow.panoId) {
+      pano.setVisible(true);
+      if (follow.panoId && followPanoIdRef.current !== follow.panoId) {
+        followPanoIdRef.current = follow.panoId;
         programmaticPanosRef.current.add(follow.panoId);
         pano.setPano(follow.panoId);
       }
-      pano.setPov({ heading: follow.heading, pitch: follow.pitch });
-      pano.setZoom(follow.zoom);
-      setHeading(follow.heading);
+      const h =
+        typeof follow.heading === "number" && Number.isFinite(follow.heading)
+          ? follow.heading
+          : 0;
+      const p =
+        typeof follow.pitch === "number" && Number.isFinite(follow.pitch)
+          ? follow.pitch
+          : 0;
+      pano.setPov({ heading: h, pitch: p });
+      if (typeof follow.zoom === "number" && Number.isFinite(follow.zoom)) {
+        pano.setZoom(follow.zoom);
+      }
+      setHeading(h);
       applyingFollow.current = false;
     },
     [ready, follow?.panoId, follow?.heading, follow?.pitch, follow?.zoom]

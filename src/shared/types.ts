@@ -174,6 +174,8 @@ export interface Room {
   currentRound: number;
   targets: Location[];
   cycleCount?: number; // Номер текущего круга пряток (от 1 до 5)
+  /** HP mode: ms timestamp when the first player confirmed a guess this round. */
+  firstGuessTime?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +246,13 @@ export interface LiveView {
   zoom: number;
 }
 
+export interface LiveCase {
+  playerId: string;
+  name: string;
+  emoji: string;
+  hint: CaseHintData;
+}
+
 export interface PublicState {
   code: string;
   phase: Phase;
@@ -257,6 +266,7 @@ export interface PublicState {
   youId: string;
   youEmoji: string; // viewer's own avatar — for their dropped pin
   youAreGameMaster: boolean;
+  yourSpot?: LatLng; // hider's own spot (only sent to the hider)
 
   // hiding phase
   youHaveHidden: boolean;
@@ -277,9 +287,14 @@ export interface PublicState {
   // already-guessed); empty for active guessers and outside the finding phase.
   livePins: LiveGuess[];
   liveViews: LiveView[];
+  liveCase: LiveCase | null;
 
   // results phase
   result: RoundResult | null;
+
+  // HP mode: timestamp (ms) when the first player guessed this round.
+  // Used to shrink the remaining timer to 15s for others.
+  firstGuessTime: number | null;
 }
 
 // ---------------------------------------------------------------------------

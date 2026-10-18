@@ -97,6 +97,7 @@ export default function GameRoom(props: { code: string }) {
             onView={game.syncView}
             onOpenCase={game.openCase}
             onCaseOpened={setCurrentCaseHint} // Сохраняем чит
+            onShareCaseHint={game.shareCaseHint}
           />
         );
       case "results":

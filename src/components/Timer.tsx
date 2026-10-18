@@ -5,24 +5,53 @@ import { playTimeTickSfx } from "@/lib/sfx";
 
 interface Props {
   seconds: number;
+  capSeconds?: number | null;
   onExpire?: () => void;
 }
 
 export default function Timer(props: Props) {
   const initialSeconds = props.seconds;
+  const capSeconds = props.capSeconds;
   const onExpire = props.onExpire;
   const expiredRef = useRef(false);
   const onExpireRef = useRef(onExpire);
   onExpireRef.current = onExpire;
 
-  const [timeLeft, setTimeLeft] = useState<number>(initialSeconds);
+  const getEffectiveInitial = (base: number, cap?: number | null) => {
+    if (base > 0) {
+      return cap != null ? Math.min(base, cap) : base;
+    }
+    return cap != null && cap > 0 ? cap : 0;
+  };
+
+  const [timeLeft, setTimeLeft] = useState<number>(() =>
+    getEffectiveInitial(initialSeconds, capSeconds),
+  );
 
   useEffect(
     function () {
       expiredRef.current = false;
-      setTimeLeft(initialSeconds);
+      setTimeLeft(getEffectiveInitial(initialSeconds, capSeconds));
     },
-    [initialSeconds]
+    [initialSeconds],
+  );
+
+  useEffect(
+    function () {
+      if (capSeconds != null) {
+        setTimeLeft(function (prev) {
+          if (prev <= 0 && initialSeconds <= 0 && capSeconds > 0) {
+            expiredRef.current = false;
+            return capSeconds;
+          }
+          if (capSeconds < prev) {
+            return capSeconds;
+          }
+          return prev;
+        });
+      }
+    },
+    [capSeconds, initialSeconds],
   );
 
   useEffect(
@@ -48,7 +77,7 @@ export default function Timer(props: Props) {
         clearInterval(interval);
       };
     },
-    [timeLeft]
+    [timeLeft],
   );
 
   useEffect(
@@ -56,10 +85,10 @@ export default function Timer(props: Props) {
       if (timeLeft <= 0 || timeLeft > 15) return;
       playTimeTickSfx(timeLeft <= 5);
     },
-    [timeLeft]
+    [timeLeft],
   );
 
-  if (initialSeconds <= 0) {
+  if (initialSeconds <= 0 && (!capSeconds || capSeconds <= 0)) {
     return null;
   }
 

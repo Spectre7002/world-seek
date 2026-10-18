@@ -163,42 +163,90 @@ export function projectFor(room: Room, viewerId: string): PublicState {
 
   let livePins: LiveGuess[] = [];
   let liveViews: LiveView[] = [];
-  if (room.phase === "finding" && targetId) {
-    const viewerHasGuessed = Boolean(viewer && viewer.guesses[targetId]);
-    if (youAreTarget || viewerHasGuessed) {
-      for (let i = 0; i < room.players.length; i++) {
-        const p = room.players[i];
-        if (p.id === viewerId || p.id === targetId) continue;
-        const confirmed = p.guesses[targetId];
-        if (confirmed) {
-          livePins.push({
-            playerId: p.id,
-            name: p.name,
-            emoji: p.emoji,
-            lat: confirmed.lat,
-            lng: confirmed.lng,
-            confirmed: true,
-          });
-        } else if (p.livePin && p.livePin.targetId === targetId) {
-          livePins.push({
-            playerId: p.id,
-            name: p.name,
-            emoji: p.emoji,
-            lat: p.livePin.lat,
-            lng: p.livePin.lng,
-            confirmed: false,
-          });
+
+  if (room.phase === "finding") {
+    if (hpLocationGame) {
+      // HP mode: once a player has guessed, they can watch the remaining hunters.
+      const soloKey = "solo-" + room.currentRound;
+      const viewerHasGuessed = Boolean(viewer && viewer.guesses[soloKey]);
+      if (viewerHasGuessed) {
+        for (let i = 0; i < room.players.length; i++) {
+          const p = room.players[i];
+          if (p.id === viewerId) continue;
+          const confirmedGuess = p.guesses[soloKey];
+          if (confirmedGuess) {
+            // Already guessed player — show confirmed pin
+            livePins.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              lat: confirmedGuess.lat,
+              lng: confirmedGuess.lng,
+              confirmed: true,
+            });
+          } else if (p.livePin && p.livePin.targetId === "hp") {
+            // Still guessing player — show live pin
+            livePins.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              lat: p.livePin.lat,
+              lng: p.livePin.lng,
+              confirmed: false,
+            });
+          }
+          // Show live Street View of players still searching
+          if (!confirmedGuess && p.liveView && p.liveView.targetId === "hp") {
+            liveViews.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              panoId: p.liveView.panoId,
+              heading: p.liveView.heading,
+              pitch: p.liveView.pitch,
+              zoom: p.liveView.zoom,
+            });
+          }
         }
-        if (p.liveView && p.liveView.targetId === targetId) {
-          liveViews.push({
-            playerId: p.id,
-            name: p.name,
-            emoji: p.emoji,
-            panoId: p.liveView.panoId,
-            heading: p.liveView.heading,
-            pitch: p.liveView.pitch,
-            zoom: p.liveView.zoom,
-          });
+      }
+    } else if (targetId) {
+      // Classic hide-and-seek mode
+      const viewerHasGuessed = Boolean(viewer && viewer.guesses[targetId]);
+      if (youAreTarget || viewerHasGuessed) {
+        for (let i = 0; i < room.players.length; i++) {
+          const p = room.players[i];
+          if (p.id === viewerId || p.id === targetId) continue;
+          const confirmed = p.guesses[targetId];
+          if (confirmed) {
+            livePins.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              lat: confirmed.lat,
+              lng: confirmed.lng,
+              confirmed: true,
+            });
+          } else if (p.livePin && p.livePin.targetId === targetId) {
+            livePins.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              lat: p.livePin.lat,
+              lng: p.livePin.lng,
+              confirmed: false,
+            });
+          }
+          if (!confirmed && p.liveView && p.liveView.targetId === targetId) {
+            liveViews.push({
+              playerId: p.id,
+              name: p.name,
+              emoji: p.emoji,
+              panoId: p.liveView.panoId,
+              heading: p.liveView.heading,
+              pitch: p.liveView.pitch,
+              zoom: p.liveView.zoom,
+            });
+          }
         }
       }
     }
@@ -249,6 +297,9 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     youId: viewerId,
     youEmoji: viewer ? viewer.emoji : "",
     youAreGameMaster: Boolean(viewer && viewer.isGameMaster),
+    yourSpot: (youAreTarget && viewer && viewer.hiding)
+      ? { lat: viewer.hiding.lat, lng: viewer.hiding.lng }
+      : undefined,
 
     youHaveHidden: Boolean(viewer && viewer.hasHidden),
     hiddenCount: hiddenCount,
@@ -265,7 +316,10 @@ export function projectFor(room: Room, viewerId: string): PublicState {
     expectedGuessers: hpLocationGame ? connected.length : solo ? 1 : expected.length,
     livePins: livePins,
     liveViews: liveViews,
+    liveCase: null,
 
     result: result,
+
+    firstGuessTime: (hpLocationGame && room.phase === "finding") ? (room.firstGuessTime ?? null) : null,
   };
 }

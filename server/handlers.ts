@@ -293,7 +293,48 @@ export function registerHandlers(io: Server): void {
       const mode = s.room.settings.caseOddsMode || "better_odds";
       const hintData = spinClassicCase(mode, targetLat, targetLng);
 
+      const opener = findPlayer(s.room, s.playerId);
+      if (opener) {
+        const packet = {
+          playerId: opener.id,
+          name: opener.name,
+          emoji: opener.emoji,
+          hint: hintData,
+        };
+        for (let i = 0; i < s.room.players.length; i++) {
+          const recipient = s.room.players[i];
+          if (!recipient.connected || !recipient.socketId) continue;
+          const projected = projectFor(s.room, recipient.id);
+          if (projected.youAreTarget || projected.youHaveGuessed) {
+            io.to(recipient.socketId).emit("case:live", packet);
+          }
+        }
+      }
       cb({ ok: true, hint: hintData });
+    });
+
+    socket.on("case:share", function (hint: unknown) {
+      const s = seat(socket);
+      if (!s || !s.room.settings.cheatsEnabled || s.room.phase !== "finding") return;
+      if (!hint || typeof hint !== "object") return;
+      const encoded = JSON.stringify(hint);
+      if (encoded.length > 10000) return;
+      const opener = findPlayer(s.room, s.playerId);
+      if (!opener) return;
+      const packet = {
+        playerId: opener.id,
+        name: opener.name,
+        emoji: opener.emoji,
+        hint: hint,
+      };
+      for (let i = 0; i < s.room.players.length; i++) {
+        const recipient = s.room.players[i];
+        if (!recipient.connected || !recipient.socketId) continue;
+        const projected = projectFor(s.room, recipient.id);
+        if (projected.youAreTarget || projected.youHaveGuessed) {
+          io.to(recipient.socketId).emit("case:live", packet);
+        }
+      }
     });
 
     socket.on("game:start", function (cb?: AckFn) {
@@ -379,7 +420,7 @@ export function registerHandlers(io: Server): void {
     });
 
     socket.on("view:sync", function (payload: unknown) {
-      if (!rateOk(socket, "viewsync", 70)) return;
+      if (!rateOk(socket, "viewsync", 8)) return;
       const s = seat(socket);
       if (!s) return;
       if (!isValidLiveView(payload)) return;
@@ -488,6 +529,12 @@ export function registerHandlers(io: Server): void {
       } else if (s.room.phase === "finding") {
         if (res.wasCurrentTarget && s.room.currentRound >= s.room.order.length) {
           s.room.phase = "finished";
+        } else if (s.room.settings.gameMode === "hp" && s.room.mode === "solo") {
+          const connected = connectedPlayers(s.room);
+          const allHpGuessed = connected.length > 0 && connected.every(p => p.guesses["solo-" + s.room.currentRound]);
+          if (allHpGuessed) {
+            scoreSoloRound(s.room, connected[0].id);
+          }
         } else if (allGuessed(s.room)) {
           scoreRound(s.room);
         }
@@ -561,8 +608,16 @@ export function registerHandlers(io: Server): void {
         player.socketId = null;
         if (room.phase === "hiding" && allConnectedHidden(room)) {
           startFinding(room);
-        } else if (room.phase === "finding" && allGuessed(room)) {
-          scoreRound(room);
+        } else if (room.phase === "finding") {
+          if (room.settings.gameMode === "hp" && room.mode === "solo") {
+            const connected = connectedPlayers(room);
+            const allHpGuessed = connected.length > 0 && connected.every(p => p.guesses["solo-" + room.currentRound]);
+            if (allHpGuessed) {
+              scoreSoloRound(room, connected[0].id);
+            }
+          } else if (allGuessed(room)) {
+            scoreRound(room);
+          }
         }
         broadcastState(io, room);
       }
