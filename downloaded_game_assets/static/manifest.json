@@ -1,0 +1,25 @@
+{
+	"short_name": "GeoGuessr",
+	"name": "GeoGuessr - Let's explore the world!",
+	"start_url": "https://www.geoguessr.com",
+	"display": "minimal-ui",
+	"icons": [
+		{
+			"src": "/static/icon-192x192.png",
+			"type": "image/png",
+			"sizes": "192x192"
+		},
+		{
+			"src": "/static/icon-512x512.png",
+			"type": "image/png",
+			"sizes": "512x512"
+		}
+	],
+	"prefer_related_applications": true,
+	"related_applications": [
+		{
+			"platform": "play",
+			"id": "com.geoguessr.app"
+		}
+	]
+}

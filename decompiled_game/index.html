@@ -1,0 +1,79 @@
+<!--index.html-->
+<!doctype html>
+<html lang="en">
+  <style>
+    iframe,
+    html,
+    body {
+      width: 100vw;
+      height: 100vh;
+      border: 0;
+      padding: 0;
+      margin: 0;
+      overflow: clip;
+      position: absolute;
+      top: 0;
+    }
+
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    .root {
+      position: absolute;
+      inset: 0 -10%;
+      height: 100%;
+      width: 120%;
+      z-index: -1;
+    }
+
+    .leftHalf {
+      fill: url("#leftGradient");
+    }
+
+    .rightHalf {
+      fill: #1a1a2e;
+    }
+  </style>
+
+  <head>
+    <meta charset="UTF-8" />
+    <title>GeoGuessr - Game Client</title>
+  </head>
+  <body>
+    <svg
+      class="root"
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 1920 1080"
+      preserveAspectRatio="none"
+    >
+      <defs>
+        <linearGradient
+          id="leftGradient"
+          x1="0"
+          y1="1920"
+          x2="0"
+          y2="0"
+          gradientUnits="userSpaceOnUse"
+          gradientTransform="rotate(250, 960, 540)"
+        >
+          <stop offset="20%" stop-color="#6840CF" />
+          <stop offset="100%" stop-color="#39316e" />
+        </linearGradient>
+      </defs>
+
+      <!-- Left Half Path -->
+      <path
+        class="leftHalf"
+        d="M0,0v1080h372c70.73-69.17,239.47-228.26,348.56-311.26l16,32.73c174.86-144.84,570.08-460.41,752.09-564.03l11.13,37.6c79.78-54.08,275.51-176.17,420.22-231.88V0H0Z"
+        fill="url(#leftGradient)"
+      />
+      <path
+        class="rightHalf"
+        d="M1920,177.56V43.17c-144.71,55.71-340.44,177.8-420.22,231.88l-11.13-37.6c-182,103.61-577.23,419.19-752.09,564.03l-16-32.73c-109.09,83-277.83,242.09-348.56,311.26h1548"
+        fill="url(#leftGradient)"
+      />
+    </svg>
+    <iframe id="game-iframe" title="GeoGuessr"></iframe>
+    <script src="dist/renderer.js"></script>
+  </body>
+</html>
