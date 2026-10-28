@@ -4,6 +4,8 @@ build/
 out/
 .next/
 maps/
+downloaded_game_assets/
+decompiled_game/
 *.json
 *.geojson
 *.map
@@ -14,3 +16,4 @@ maps/
 *.ico
 *.mp3
 *.wav
+*.har

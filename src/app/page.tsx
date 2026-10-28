@@ -243,6 +243,24 @@ export default function Home() {
         </div>
         </div>
 
+        {/* HorrorGuessr is a separate single-player roguelike living at /horror.
+            It has no lobby, so the only discoverable entry point is this card. */}
+        <button
+          type="button"
+          className="home-horror-card"
+          onClick={() => router.push("/horror")}
+        >
+          <span className="home-horror-glow" aria-hidden="true" />
+          <span className="stack" style={{ gap: 4, textAlign: "left", alignItems: "flex-start" }}>
+            <span className="eyebrow">{t("Roguelike mode")}</span>
+            <span className="home-horror-title">{t("HorrorGuessr")}</span>
+            <span className="muted" style={{ fontSize: 14 }}>
+              {t("Survive 40 days of Street View horror — the monster is always behind you.")}
+            </span>
+          </span>
+          <span className="home-horror-cta">{t("Play HorrorGuessr")} →</span>
+        </button>
+
         <p className="muted" style={{ textAlign: "center", fontSize: 13, margin: 0 }}>
           Initial mockup by{" "}
           <a href="https://ivanvilla.com" target="_blank" rel="noopener noreferrer">

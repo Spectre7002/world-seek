@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Jersey_25, Jersey_10 } from "next/font/google";
+import { Jersey_25, Jersey_10, Creepster } from "next/font/google";
 import "./globals.css";
 import ClickSound from "@/components/ClickSound";
 import { LanguageProvider } from "@/lib/language";
@@ -23,6 +23,15 @@ const body = Jersey_10({
   display: "swap",
 });
 
+// Horror display font — bloody drippy title font for the HorrorGuessr main menu.
+const horror = Creepster({
+  subsets: ["latin"],
+  weight: "400",
+  adjustFontFallback: false,
+  variable: "--font-horror",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "World Seek",
   description: "Hide somewhere in the world. Let your friends find you on Street View.",
@@ -40,7 +49,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${body.variable}`}>
+    <html lang="en" className={`${display.variable} ${body.variable} ${horror.variable}`}>
       <body>
         <LanguageProvider>{children}</LanguageProvider>
         <ClickSound />

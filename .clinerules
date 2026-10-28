@@ -1,0 +1,5 @@
+# Windows Terminal Rules
+- Operating System: Windows.
+- Strictly DO NOT use Linux/Unix CLI utilities (`head`, `tail`, `grep`, `cat`, etc.) or bash piping (`| head -100`).
+- Run commands directly, e.g. `npx tsc --noEmit` without output limiters.
+- Terminal output: Always force UTF-8 or use PowerShell commands to avoid CP866 encoding corruption.

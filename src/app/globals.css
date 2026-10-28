@@ -385,6 +385,92 @@ button:disabled {
   font-size: 16px !important;
 }
 
+/* Landing-page entry point into the solo HorrorGuessr roguelike. It is a wide
+   full-width button so it reads as a mode switch rather than a third form. */
+.home-horror-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 20px;
+  text-align: left;
+  color: var(--text);
+  background:
+    linear-gradient(120deg, rgba(127, 29, 29, 0.55) 0%, rgba(17, 24, 39, 0.9) 55%),
+    var(--bg-elev);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px -12px rgba(239, 68, 68, 0.6);
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-horror-card:hover {
+  border-color: rgba(239, 68, 68, 0.7);
+  transform: translateY(-1px);
+  box-shadow: 0 12px 28px -12px rgba(239, 68, 68, 0.75);
+}
+
+.home-horror-card:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.home-horror-glow {
+  position: absolute;
+  inset: -40% -10% auto auto;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(239, 68, 68, 0.35), transparent 70%);
+  pointer-events: none;
+  animation: home-horror-pulse 4s ease-in-out infinite;
+}
+
+@keyframes home-horror-pulse {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.home-horror-title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fecaca;
+}
+
+/* The glow is positioned, so the real content needs its own stacking context
+   to stay above it. */
+.home-horror-card > .stack,
+.home-horror-cta {
+  position: relative;
+  z-index: 1;
+}
+
+.home-horror-cta {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-horror-glow {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
 .lobby-shell {
   width: min(920px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
@@ -1074,6 +1160,19 @@ button.stepper-btn {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
+  /* Stack the horror card on phones: title above, CTA below at full width. */
+  .home-horror-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+  .home-horror-cta {
+    text-align: center;
+  }
+  .home-horror-title {
+    font-size: 22px;
+  }
   .home-create-card .emoji-grid {
     max-height: 220px !important;
   }
@@ -1421,4 +1520,397 @@ button.stepper-btn {
   background: var(--bg-elev);
   border: 1px solid var(--accent);
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+/* --- HORROR DAY MODIFIERS & VISUAL FX (P7, §4.4, §4.5, §6.6) --- */
+@keyframes hz-fog-drift {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1.05); }
+  50% { transform: translate3d(2%, 1%, 0) scale(1.1); }
+  100% { transform: translate3d(-2%, -1%, 0) scale(1.05); }
+}
+
+@keyframes hz-jumpscare-flash {
+  0% { opacity: 0; transform: scale(1.15); }
+  12% { opacity: 1; transform: scale(1); }
+  70% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes hz-shake {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  20% { transform: translate3d(-6px, 3px, 0) rotate(-3deg); }
+  40% { transform: translate3d(5px, -4px, 0) rotate(3deg); }
+  60% { transform: translate3d(-4px, 2px, 0) rotate(-2deg); }
+  80% { transform: translate3d(3px, -2px, 0) rotate(2deg); }
+}
+
+@keyframes hz-damage-vignette {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes hz-heal-flash {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* --- HORROR BOSSES & DUELS (P8, §5.1–§5.4) --- */
+
+/* The Banshee's scream: a slow blue pulse while the window is open. */
+@keyframes hz-scream-pulse {
+  0% { opacity: 0.35; transform: scale(1); }
+  100% { opacity: 0.9; transform: scale(1.03); }
+}
+
+/* A won boss round: the player's health bar flashes green briefly. */
+@keyframes hz-boss-win {
+  0% { box-shadow: inset 0 0 0 0 rgba(56, 224, 122, 0.5); }
+  100% { box-shadow: inset 0 0 0 6px rgba(56, 224, 122, 0); }
+}
+
+/* The cream-pie wipe layer sits above the pano and the map (§5.3). */
+.horror-wipe-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  touch-action: none;
+}
+
+/* The boss duel HUD is pointer-transparent except for its own buttons. */
+.horror-boss-hud {
+  pointer-events: none;
+}
+
+.horror-boss-hud .horror-panel,
+.horror-boss-hud button {
+  pointer-events: auto;
+}
+
+/* Escape hatch from the HorrorGuessr start screen back to the landing page. */
+.horror-back-btn {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: none;
+}
+
+.horror-back-btn:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-elev-3);
+}
+
+/* ===== Horror main menu (HorrorGuessr start screen) ===== */
+.horror-menu {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #0b0610;
+  color: #efe8f2;
+  font-family: var(--font-body);
+}
+
+.horror-menu-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.horror-menu-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+}
+
+.horror-menu-fog {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  background: radial-gradient(circle at 30% 40%, rgba(124, 58, 237, 0.18), transparent 55%),
+    radial-gradient(circle at 70% 60%, rgba(30, 27, 75, 0.35), transparent 60%);
+  animation: hz-fog-drift 70s ease-in-out infinite;
+  mix-blend-mode: screen;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horror-menu-fog {
+    animation: none;
+  }
+}
+
+.horror-menu-fog--2 {
+  animation-duration: 95s;
+  animation-direction: reverse;
+  opacity: 0.6;
+}
+
+.horror-menu-content {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.horror-menu-hero {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.horror-menu-title {
+  font-family: var(--font-horror, "Creepster", cursive);
+  font-size: clamp(40px, 7vw, 84px);
+  line-height: 0.95;
+  margin: 0;
+  color: #ef4444;
+  text-shadow: 0 0 18px rgba(239, 68, 68, 0.55), 0 4px 12px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.02em;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.horror-menu-subtitle {
+  margin: 0;
+  font-size: clamp(16px, 2vw, 22px);
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+/* Progression track */
+.horror-menu-track {
+  position: relative;
+  width: min(720px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0 6px;
+}
+
+.horror-menu-track-line {
+  position: absolute;
+  top: 46px;
+  left: 8%;
+  right: 8%;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.horror-menu-track-dash {
+  position: absolute;
+  top: 46px;
+  left: 8%;
+  width: 12%;
+  height: 2px;
+  background: repeating-linear-gradient(90deg, #fbbf24 0 6px, transparent 6px 12px);
+}
+
+.horror-menu-track-nodes {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.horror-menu-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.horror-menu-node-circle {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 11, 29, 0.85);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: #a897b3;
+}
+
+.horror-menu-node.is-active .horror-menu-node-circle {
+  border-color: #a855f7;
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.7), 0 0 6px rgba(168, 85, 247, 0.9);
+  background: rgba(40, 18, 60, 0.9);
+}
+
+.horror-menu-node-glow {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.45), transparent 70%);
+  pointer-events: none;
+  animation: home-horror-pulse 3s ease-in-out infinite;
+}
+
+.horror-menu-node-silhouette {
+  opacity: 0.55;
+  filter: brightness(0.4);
+}
+
+.horror-menu-node-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #a897b3;
+}
+
+.horror-menu-node.is-active .horror-menu-node-num {
+  color: #c4b5fd;
+}
+
+.horror-menu-track-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fbbf24;
+  letter-spacing: 0.04em;
+}
+
+.horror-menu-chest {
+  font-size: 14px;
+}
+
+/* Difficulty cards */
+.horror-menu-difficulties {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.horror-menu-card {
+  position: relative;
+  width: 230px;
+  min-height: 120px;
+  padding: 18px 16px 16px;
+  border-radius: 14px;
+  background: rgba(20, 11, 29, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #efe8f2;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+.horror-menu-card:hover {
+  border-color: rgba(239, 68, 68, 0.45);
+  transform: translateY(-2px);
+}
+
+.horror-menu-card.is-selected {
+  border-color: #ef4444;
+  box-shadow: 0 0 22px rgba(239, 68, 68, 0.55), 0 8px 24px -12px rgba(239, 68, 68, 0.6);
+}
+
+.horror-menu-card-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #000000;
+  color: #fbbf24;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.horror-menu-tombstone {
+  font-size: 12px;
+}
+
+.horror-menu-card-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  margin-top: 14px;
+}
+
+.horror-menu-card-desc {
+  font-size: 13px;
+  color: #a897b3;
+  line-height: 1.3;
+}
+
+/* CTA */
+.horror-menu-start {
+  padding: 14px 64px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(rgb(211, 23, 48), rgb(113, 9, 23));
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(113, 9, 23, 0.6), inset 0 2px 0 rgba(255, 255, 255, 0.18);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+
+.horror-menu-start:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.horror-menu-start:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 720px) {
+  .horror-menu-difficulties {
+    flex-direction: column;
+    align-items: center;
+  }
+  .horror-menu-card {
+    width: min(320px, 90vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .horror-fog,
+  .horror-jumpscare,
+  .horror-damage-vignette,
+  .horror-heal-flash,
+  .horror-death,
+  .horror-scream {
+    animation: none !important;
+  }
 }
