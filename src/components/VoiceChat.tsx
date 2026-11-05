@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { PublicPlayer } from "@/shared/types";
 import type { VoiceMode, VoiceChatHook } from "@/lib/useVoiceChat";
 import VoiceSettings from "./VoiceSettings";
 
 interface Props extends VoiceChatHook {
   myId: string;
+  /** Everyone in the room, for the per-player volume list. */
+  players: PublicPlayer[];
 }
 
 function modeIcon(mode: VoiceMode, pttActive: boolean, micReady: boolean): string {
@@ -22,6 +25,7 @@ function modeIcon(mode: VoiceMode, pttActive: boolean, micReady: boolean): strin
 
 export default function VoiceChat({
   myId,
+  players,
   voiceMode,
   setVoiceMode,
   micDeviceId,
@@ -33,6 +37,11 @@ export default function VoiceChat({
   speakingIds,
   localAnalyserRef,
   getAudioCtx,
+  peerAudio,
+  setPeerVolume,
+  togglePeerMute,
+  pttKey,
+  setPttKey,
 }: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -123,6 +132,13 @@ export default function VoiceChat({
           localAnalyserRef={localAnalyserRef}
           getAudioCtx={getAudioCtx}
           onClose={() => setSettingsOpen(false)}
+          players={players}
+          myId={myId}
+          peerAudio={peerAudio}
+          onSetPeerVolume={setPeerVolume}
+          onTogglePeerMute={togglePeerMute}
+          pttKey={pttKey}
+          onSetPttKey={setPttKey}
         />
       )}
     </>

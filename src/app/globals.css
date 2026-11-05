@@ -26,7 +26,6 @@
   --font-body: var(--font-display);
 }
 
-.bg-video,
 .bg-texture {
   display: none !important;
 }
@@ -323,6 +322,60 @@ button {
   box-shadow: var(--shadow-button);
 }
 
+button.secondary,
+a.secondary,
+button.ghost,
+a.ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  box-shadow: none;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+button.secondary:hover:not(:disabled),
+a.secondary:hover,
+button.ghost:hover:not(:disabled),
+a.ghost:hover {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.18);
+  transform: translateY(-1px);
+}
+
+button.ghost,
+a.ghost {
+  background: transparent;
+  border-color: transparent;
+}
+
+select,
+textarea,
+input:not(.player-name-input) {
+  color-scheme: dark;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+select option {
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.street-view-strict-lock .street-view-canvas {
+  pointer-events: none;
+}
+
 button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -350,6 +403,12 @@ button:disabled {
   margin: auto;
 }
 
+/* A long, scrolling document (the stats page). `margin: auto` on an overflowing
+   flex child clips its top, so this pins the block to the top instead. */
+.center-screen > .stats-page {
+  margin: 0 auto;
+}
+
 .home-shell {
   margin: auto;
 }
@@ -357,6 +416,7 @@ button:disabled {
 .home-toolbar {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .home-form-grid {
@@ -668,6 +728,10 @@ button.stepper-btn {
   pointer-events: none;
 }
 
+.sv-topbar:empty {
+  display: none;
+}
+
 .sv-compass-dial {
   position: absolute;
   bottom: 22px;
@@ -905,6 +969,419 @@ button.stepper-btn {
   bottom: 92px;
 }
 
+/* The map window grows upward once the spell bar has something to show. */
+.guess-map-window.has-spells {
+  height: min(380px, 50vh);
+}
+
+/* Keep the hover expansion working with the spell bar present. */
+.guess-map-window.has-spells:hover {
+  height: min(60vh, 700px);
+}
+
+.spell-map {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.spell-map-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.spell-map-canvas > * {
+  width: 100%;
+  height: 100%;
+}
+
+.spell-bar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  max-height: 0;
+  padding: 0 7px;
+  overflow: hidden;
+  border-bottom: 1px solid transparent;
+  background: rgba(9, 13, 22, 0.94);
+  opacity: 0;
+  transition: max-height 260ms ease, padding 260ms ease, opacity 180ms ease,
+    border-color 260ms ease;
+}
+
+.spell-bar.is-open {
+  max-height: 64px;
+  padding: 8px 7px;
+  border-bottom-color: var(--border);
+  opacity: 1;
+}
+
+.spell-bar-title {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.spell-bar-list {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.spell-bar-list::-webkit-scrollbar {
+  display: none;
+}
+
+.spell-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+  background: rgba(31, 41, 55, 0.92);
+  box-shadow: none;
+  color: #c4b5fd;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.spell-pill:hover:not(:disabled) {
+  border-color: rgba(192, 132, 252, 0.7);
+  color: #ede9fe;
+}
+
+.spell-pill.is-active {
+  border-color: #c084fc;
+  background: linear-gradient(135deg, #6d28d9, #9333ea);
+  box-shadow: 0 0 0 2px rgba(192, 132, 252, 0.22),
+    0 0 18px rgba(147, 51, 234, 0.55);
+  color: #fff;
+}
+
+.spell-pill:disabled {
+  opacity: 0.42;
+}
+
+/* Server spells (FREEZE / REROLL) fire immediately instead of arming a map
+   click, so they get a distinct tint and no pressed state. */
+.spell-pill.is-instant {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.35);
+}
+
+.spell-pill.is-instant:hover:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.8);
+  color: #e0f2fe;
+}
+
+/* Pity timer readout next to the case button. */
+.case-pity {
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 215, 0, 0.45);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffd700;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* FREEZE banner: the player cannot lock a guess until it expires. */
+.freeze-banner {
+  padding: 8px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.6);
+  border-radius: 8px;
+  background: rgba(8, 47, 73, 0.9);
+  color: #bae6fd;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.35);
+}
+
+/* NMPZ badge: shown in the finding HUD when movement is restricted. */
+.nmpz-badge {
+  margin-left: 8px;
+  padding: 2px 8px;
+  border: 1px solid rgba(251, 191, 36, 0.7);
+  border-radius: 999px;
+  background: rgba(69, 26, 3, 0.85);
+  color: #fcd34d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+/* Case tier chips in the lobby. */
+.case-tier-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.case-tier-chip {
+  padding: 5px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: rgba(31, 41, 55, 0.9);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.case-tier-chip.is-on {
+  border-color: rgba(192, 132, 252, 0.75);
+  background: linear-gradient(135deg, #4c1d95, #7e22ce);
+  color: #f5f3ff;
+}
+
+.case-tier-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* COMPASS badge: a bearing readout with its icon inline. */
+.compass-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.compass-pill svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.spell-icon {
+  display: inline-flex;
+}
+
+.spell-icon svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.spell-name {
+  font-size: 9px;
+  letter-spacing: 0;
+}
+
+.spell-count {
+  min-width: 9px;
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.spell-anchor-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+.spell-anchor {
+  position: absolute;
+}
+
+.spell-anchor.is-scry,
+.spell-anchor.is-omen {
+  transform: translate(-50%, -50%);
+}
+
+.spell-anchor.is-echo {
+  transform: translate(-50%, calc(-100% - 8px));
+}
+
+.spell-anchor.is-omen .map-pill {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.map-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 1px solid rgba(192, 132, 252, 0.8);
+  border-radius: 999px;
+  background: rgba(6, 4, 14, 0.9);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.spell-anchor.is-scry.is-hit .scry-badge {
+  border-color: #22c55e;
+  box-shadow: 0 0 18px rgba(34, 197, 94, 0.75);
+}
+
+.spell-anchor.is-scry.is-miss .scry-badge {
+  border-color: #ef4444;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.75);
+}
+
+.spell-cursor {
+  position: absolute;
+  z-index: 7;
+  display: none;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+
+.spell-cursor-scry {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 180px;
+  height: 180px;
+  border: 2px dashed rgba(192, 132, 252, 0.95);
+  border-radius: 50%;
+  background: rgba(147, 51, 234, 0.12);
+  box-shadow: inset 0 0 28px rgba(192, 132, 252, 0.25);
+  transform: translate(-50%, -50%);
+}
+
+.spell-cursor-icon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid rgba(233, 213, 255, 0.9);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7e22ce, #a855f7);
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.7);
+  color: #f5f3ff;
+}
+
+.spell-cursor-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.scry-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(233, 213, 255, 0.9);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7e22ce, #a855f7);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.7);
+  color: #f5f3ff;
+}
+
+.scry-badge svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.omen-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(233, 213, 255, 0.9);
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7e22ce, #a855f7);
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.7);
+  color: #f5f3ff;
+}
+
+.omen-badge svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.spell-message {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  z-index: 6;
+  max-width: calc(100% - 16px);
+  padding: 5px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(9, 13, 22, 0.92);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.spell-message.is-good {
+  border-color: #22c55e;
+  color: #86efac;
+}
+
+.spell-message.is-bad {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.spell-message.is-info {
+  border-color: #a855f7;
+  color: #e9d5ff;
+}
+
 .hiding-map-window {
   width: min(440px, 46vw);
   height: min(330px, 42vh);
@@ -1027,6 +1504,12 @@ button.stepper-btn {
   }
   .guess-map-window {
     bottom: 88px;
+  }
+  .guess-map-window.has-spells {
+    height: min(330px, 46vh);
+  }
+  .spell-bar-title {
+    display: none;
   }
   .hiding-map-window {
     width: min(360px, 58vw);
@@ -1315,6 +1798,189 @@ button.stepper-btn {
   height: 100%;
   border-radius: 6px;
   transition: width 1.5s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.5s ease;
+  /* Repeating diagonal stripes are a colour-independent cue: the bar reads
+     as "health" from its texture even when red/green are indistinguishable. */
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.22) 0,
+    rgba(255, 255, 255, 0.22) 6px,
+    rgba(255, 255, 255, 0) 6px,
+    rgba(255, 255, 255, 0) 12px
+  );
+  background-blend-mode: overlay;
+}
+
+/* --- Spectator banner --- */
+/* A late joiner watches without a seat. The banner sits under the reconnect
+   banner so the two never overlap. */
+.spectator-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 900;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.92);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+  box-shadow: var(--shadow-main);
+  pointer-events: none;
+}
+
+/* --- HP roster: 3+ player HP matches --- */
+/* Anchored bottom-left: the top strip is taken by the round heading and the
+   timer HUD, and the bottom-right corner by the guess confirm bar. */
+.hp-roster {
+  position: absolute;
+  bottom: 20px;
+  left: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(300px, calc(100vw - 32px));
+  max-height: min(42vh, 380px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(17, 24, 39, 0.9);
+  box-shadow: var(--shadow-main);
+  pointer-events: none;
+}
+
+/* Watch view: the bottom-left corner holds the hunter roster, so the HP board
+   moves to the free top-right corner instead. */
+.hp-roster--watch {
+  bottom: auto;
+  left: auto;
+  top: 12px;
+  right: 16px;
+}
+
+.hp-roster-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.hp-roster-row.is-me {
+  background: rgba(99, 102, 241, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.5);
+}
+
+.hp-roster-row.is-out {
+  opacity: 0.45;
+}
+
+.hp-roster-row.is-off {
+  opacity: 0.55;
+}
+
+.hp-roster-avatar {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: block;
+}
+
+.hp-roster-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+}
+
+.hp-roster-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.hp-roster-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.hp-roster-name {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hp-roster-mult {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  border: 1px solid #93c5fd;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 900;
+  font-style: italic;
+}
+
+.hp-roster-track {
+  position: relative;
+  height: 14px;
+  border: 1px solid #7c3aed;
+  border-radius: 3px;
+  background: #111827;
+  overflow: hidden;
+}
+
+.hp-roster-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #84cc16, #a3e635);
+  transition: width 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.4s ease;
+}
+
+.hp-roster-val {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  text-shadow: 0 1px 2px #000;
+}
+
+.hp-roster-delta {
+  position: absolute;
+  right: 6px;
+  top: -2px;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 900;
+  text-shadow: 0 1px 3px #000;
+  animation: hp-delta-float 1.2s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes hp-delta-float {
+  0% { opacity: 0; transform: translateY(4px); }
+  20% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
 }
 
 @media (max-width: 620px) {
@@ -1327,6 +1993,18 @@ button.stepper-btn {
     max-width: 90px;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .hp-roster {
+    bottom: 10px;
+    left: 10px;
+    width: calc(100vw - 20px);
+    max-height: 30vh;
+  }
+  .hp-roster--watch {
+    bottom: auto;
+    left: auto;
+    top: 10px;
+    right: 10px;
   }
 }
 
@@ -1421,4 +2099,333 @@ button.stepper-btn {
   background: var(--bg-elev);
   border: 1px solid var(--accent);
   box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+/* --- Stats page --- */
+/* The stats page is a plain scrolling document, not a fixed game screen, so it
+   overrides the `.center-screen` fixed positioning it is nested in. */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.achievement {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  /* Locked achievements stay legible but visibly inactive. */
+  opacity: 0.45;
+}
+
+.achievement--on {
+  opacity: 1;
+  border-color: rgba(255, 215, 0, 0.45);
+  background: rgba(255, 215, 0, 0.06);
+}
+
+.achievement-icon {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+/* --- Round history breakdown (results + final screens) --- */
+.round-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.round-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 13px;
+}
+
+.round-history-row--current {
+  border-color: var(--accent);
+  background: rgba(99, 102, 241, 0.1);
+}
+
+/* --- Phase 6: quick reactions --- */
+.reaction-bar {
+  position: fixed;
+  left: 22px;
+  bottom: 92px;
+  z-index: 900;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.reaction-toggle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  padding: 0;
+}
+
+.reaction-palette {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-1);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.reaction-pick {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.reaction-pick:hover,
+.reaction-pick:focus-visible {
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+}
+
+/* Bursts float up and fade. The horizontal offset comes from --burst-index so
+   the layout is stable across re-renders instead of jumping on every arrival. */
+.reaction-bursts {
+  position: fixed;
+  left: 22px;
+  bottom: 156px;
+  z-index: 899;
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.reaction-burst {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(9, 13, 22, 0.85);
+  border: 1px solid var(--border);
+  transform: translateX(calc(var(--burst-index, 0) * -6px));
+  animation: reaction-float 2.6s ease-out forwards;
+}
+
+.reaction-burst-glyph {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.reaction-burst-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+@keyframes reaction-float {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px) scale(0.95);
+  }
+}
+
+/* --- Mobile HUD pass --- */
+/* On phones the floating map, spell bar and HP HUD used to fight for the same
+   corners. Shrink the map, drop its hover-expand (touch has no hover), let the
+   roster use the width, and stack the HP battle HUD. */
+@media (max-width: 620px) {
+  .floating-map {
+    width: min(280px, 64vw);
+    height: min(200px, 30vh);
+    min-width: 160px;
+    min-height: 140px;
+    right: 12px;
+    bottom: 76px;
+  }
+  .floating-map:hover,
+  .floating-map:focus-within {
+    width: min(280px, 64vw);
+    height: min(200px, 30vh);
+  }
+  .hiding-map-window {
+    width: min(320px, 70vw);
+  }
+  .hp-roster,
+  .hp-roster--watch {
+    width: calc(100vw - 24px);
+    max-height: 30vh;
+  }
+  .hp-battle-hud {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .hp-battle-player {
+    width: 100%;
+    max-width: none;
+  }
+  .roulette-window {
+    width: 94%;
+    height: 130px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reaction-burst {
+    animation: none;
+    opacity: 1;
+  }
+  /* Stop the roulette, HP multiplier pulse, and the red timer/edge flashes.
+     Each keeps its final/resting state so the information is not lost. */
+  .roulette-strip,
+  .roulette-card.winner,
+  .hp-battle-mult.is-pulsing,
+  .timer-badge.warning,
+  .time-critical-flash {
+    animation: none !important;
+  }
+  .hp-bar-fill,
+  .hp-battle-mult {
+    transition: none !important;
+  }
+  .round-start-notice {
+    animation: none !important;
+  }
+}
+
+/* --- Phase 6: system chat lines --- */
+.chat-system {
+  align-self: center;
+  max-width: 90%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+}
+
+/* --- Phase 6: per-player voice volume --- */
+.peer-audio-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.peer-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.peer-audio-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 40%;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.peer-audio-slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.peer-audio-mute {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 16px;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.peer-audio-mute.is-muted {
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+.ptt-key-btn {
+  min-width: 120px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ptt-key-btn.is-capturing {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Phase 6: seed / daily challenge --- */
+.seed-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.seed-input {
+  flex: 1;
+  min-width: 120px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: #fff;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.seed-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

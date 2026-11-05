@@ -3,7 +3,7 @@
 import { useGame } from "@/lib/useGame";
 import { useTextChat } from "@/lib/useTextChat";
 import { useVoiceChat } from "@/lib/useVoiceChat";
-import BudgetClosed from "./BudgetClosed";
+import { useReactions } from "@/lib/useReactions";
 import GameMenu from "./GameMenu";
 import JoinForm from "./JoinForm";
 import Lobby from "./Lobby";
@@ -13,6 +13,7 @@ import ResultsPhase from "./ResultsPhase";
 import FinalScores from "./FinalScores";
 import TextChat from "./TextChat";
 import VoiceChat from "./VoiceChat";
+import ReactionBar from "./ReactionBar";
 import RoundStartNotice from "./RoundStartNotice";
 import AmbientMusic from "./AmbientMusic";
 import { useLanguage } from "@/lib/language";
@@ -32,6 +33,12 @@ export default function GameRoom(props: { code: string }) {
   const youId = game.state ? game.state.youId : "";
 
   const voice = useVoiceChat(voiceChatEnabled, players, youId);
+  // Reactions are a social feature, not a chat one: they work whenever the
+  // room is in a round, even with text chat switched off.
+  const inRound = game.state
+    ? game.state.phase === "hiding" || game.state.phase === "finding"
+    : false;
+  const reactions = useReactions(inRound);
   
   // Сохраняем текущий чит, чтобы передать его в результаты
   const [currentCaseHint, setCurrentCaseHint] = useState<any>(null);
@@ -43,9 +50,6 @@ export default function GameRoom(props: { code: string }) {
     }
   }, [game.state?.phase, game.state?.currentRound, game.state?.guessedCount]);
 
-  if (game.budgetBlocked) {
-    return <BudgetClosed inGame />;
-  }
 
   if (game.status === "connecting") {
     return (
@@ -84,6 +88,7 @@ export default function GameRoom(props: { code: string }) {
           <HidingPhase
             state={s}
             onHide={game.hide}
+            onAutoHide={game.autoHide}
             onValidateHide={game.validateHide}
             speakingIds={voice.speakingIds}
           />
@@ -98,13 +103,21 @@ export default function GameRoom(props: { code: string }) {
             onOpenCase={game.openCase}
             onCaseOpened={setCurrentCaseHint} // Сохраняем чит
             onShareCaseHint={game.shareCaseHint}
+            onSpellConsumed={game.consumeSpell}
+            onSpellsGranted={game.grantSpells}
           />
         );
       case "results":
         // Передаем сохраненный чит в результаты
         return <ResultsPhase state={s} onNext={game.nextRound} caseHint={currentCaseHint} />;
       case "finished":
-        return <FinalScores state={s} onReturnToLobby={game.returnToLobby} />;
+        return (
+          <FinalScores
+            state={s}
+            onReturnToLobby={game.returnToLobby}
+            onRematch={game.rematch}
+          />
+        );
       default:
         return null;
     }
@@ -115,7 +128,7 @@ export default function GameRoom(props: { code: string }) {
       {renderPhase()}
       {(s.phase === "hiding" || s.phase === "finding") && (
         <RoundStartNotice
-          key={s.phase + "-" + s.currentRound}
+          key={s.phase + "-" + s.roundKey}
           round={s.currentRound + 1}
         />
       )}
@@ -123,14 +136,30 @@ export default function GameRoom(props: { code: string }) {
         isGameMaster={s.youAreGameMaster}
         onLeave={game.leave}
         onClose={game.close}
+        onForceAdvance={game.forceAdvance}
+        canForceAdvance={s.phase === "hiding" || s.phase === "finding"}
+        players={s.players}
+        youId={s.youId}
+        kickVotes={s.kickVotes}
+        kickVotesNeeded={s.kickVotesNeeded}
+        onVoteKick={game.voteKick}
       />
       <AmbientMusic active={s.phase === "hiding" || s.phase === "finding"} />
       {!game.connected && (
-        <div className="reconnect-banner">{t("Reconnecting…")}</div>
+        <div className="reconnect-banner">{t("Reconnecting...")}</div>
+      )}
+      {s.youAreSpectator && s.phase !== "lobby" && (
+        <div className="spectator-banner">
+          👀 {t("Spectating")} — {t("You joined mid-game, so you're watching this one. You'll get a seat in the next game.")}
+        </div>
+      )}
+
+      {inRound && (
+        <ReactionBar reactions={reactions.reactions} onSend={reactions.send} />
       )}
 
       {voiceChatEnabled && (
-        <VoiceChat {...voice} myId={s.youId} />
+        <VoiceChat {...voice} myId={s.youId} players={s.players} />
       )}
 
       {textChatEnabled && (

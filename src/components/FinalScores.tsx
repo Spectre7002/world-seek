@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import type { PublicState } from "@/shared/types";
 import { emojiUrl } from "@/shared/emojis";
+import RoundHistory from "./RoundHistory";
 import { useLanguage } from "@/lib/language";
 
 interface Props {
   state: PublicState;
   onReturnToLobby: () => void;
+  /** Host only: restart immediately with the same players and settings. */
+  onRematch?: () => void;
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -15,9 +19,22 @@ export default function FinalScores(props: Props) {
   const { t } = useLanguage();
   const state = props.state;
   const onReturnToLobby = props.onReturnToLobby;
+  const onRematch = props.onRematch;
 
-  const ranked = state.players;
   const isHpMode = state.settings.gameMode === "hp";
+  // Spectators never played, so they must not appear in the standings.
+  const seated = state.players.filter((p) => !p.spectator);
+  // HP matches are decided by remaining health, not by points. The server sorts
+  // `players` by totalScore, so re-sort here or the "winner" is just whoever
+  // scored most while being eliminated.
+  const ranked = isHpMode
+    ? [...seated].sort(
+        (a, b) =>
+          b.hp - a.hp ||
+          (b.guessMultiplier ?? 1) - (a.guessMultiplier ?? 1) ||
+          b.totalScore - a.totalScore,
+      )
+    : seated;
   const topScore = ranked[0] ? ranked[0].totalScore : 0;
   const winners = [];
   for (let i = 0; i < ranked.length; i++) {
@@ -28,11 +45,13 @@ export default function FinalScores(props: Props) {
 
   let winnerText = "";
   if (isHpMode) {
-    const winner = ranked.find((player) => player.hp > 0);
+    const winner = ranked[0];
     winnerText = winner
       ? t("Winner: {name}").replace("{name}", winner.name)
       : t("Game over");
   } else if (state.solo) {
+    // `solo` is now a genuine single-player game only; HP matches have a winner
+    // and are handled by the branch above.
     winnerText = t("You scored {score} points").replace("{score}", topScore.toLocaleString());
   } else if (winners.length === 1) {
     winnerText = t("Winner: {name}").replace("{name}", winners[0].name);
@@ -80,13 +99,34 @@ export default function FinalScores(props: Props) {
           })}
         </div>
 
-        {state.youAreGameMaster ? (
-          <button type="button" onClick={onReturnToLobby}>
-            {t("Back to lobby")}
-          </button>
-        ) : (
-          <p className="muted">{t("Waiting for the host to return to the lobby…")}</p>
-        )}
+        <RoundHistory state={state} />
+
+        <div className="row" style={{ gap: 10 }}>
+          {state.youAreGameMaster ? (
+            <>
+              {onRematch && (
+                <button type="button" onClick={onRematch} style={{ flex: 1 }}>
+                  🔁 {t("Rematch")}
+                </button>
+              )}
+              <button
+                type="button"
+                className="secondary"
+                onClick={onReturnToLobby}
+                style={{ flex: 1 }}
+              >
+                {t("Back to lobby")}
+              </button>
+            </>
+          ) : (
+            <p className="muted" style={{ flex: 1 }}>
+              {t("Waiting for the host to return to the lobby...")}
+            </p>
+          )}
+          <Link className="secondary" href="/stats" style={{ textDecoration: "none" }}>
+            {t("Stats")}
+          </Link>
+        </div>
       </div>
     </div>
   );

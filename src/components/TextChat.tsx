@@ -97,20 +97,28 @@ export default function TextChat({ messages, onSend, unreadCount, onSetOpen, has
             {messages.length === 0 && (
               <p className="chat-empty muted">{t("No messages yet.")}</p>
             )}
-            {messages.map((msg) => (
-              <div key={msg.id} className="chat-msg">
-                <img
-                  className="chat-emoji"
-                  src={emojiUrl(msg.emoji)}
-                  alt=""
-                  aria-hidden="true"
-                />
-                <div className="chat-msg-body">
-                  <span className="chat-name">{msg.playerName}</span>
-                  <span className="chat-text">{msg.text}</span>
+            {messages.map((msg) =>
+              // Server notices ("Bob joined", "Round 3 started") have no author,
+              // so they render as a muted centred line instead of a bubble.
+              msg.system ? (
+                <div key={msg.id} className="chat-system">
+                  {msg.text}
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={msg.id} className="chat-msg">
+                  <img
+                    className="chat-emoji"
+                    src={emojiUrl(msg.emoji)}
+                    alt=""
+                    aria-hidden="true"
+                  />
+                  <div className="chat-msg-body">
+                    <span className="chat-name">{msg.playerName}</span>
+                    <span className="chat-text">{msg.text}</span>
+                  </div>
+                </div>
+              ),
+            )}
             <div ref={bottomRef} />
           </div>
           <div className="chat-input-row">

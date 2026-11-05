@@ -30,6 +30,11 @@ export function roomCount(): number {
   return rooms.size;
 }
 
+/** Every live room. Used by the server-side phase clock. */
+export function allRooms(): Room[] {
+  return Array.from(rooms.values());
+}
+
 // When a room was first observed with zero connected players (for idle sweeping).
 const emptySince = new Map<string, number>();
 

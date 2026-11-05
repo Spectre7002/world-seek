@@ -29,6 +29,10 @@ audit/
 # throwaway probe & load scripts kept at the repo root (see scripts/ for real ones)
 /_*.mjs
 
+# local runtime state (history/budget counters when run outside Docker)
+.tmp/
+/data/
+
 temp_reference/
 
 # IDE workspace state (machine-specific)

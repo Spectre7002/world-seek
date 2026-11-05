@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Jersey_25, Jersey_10 } from "next/font/google";
 import "./globals.css";
 import ClickSound from "@/components/ClickSound";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { LanguageProvider } from "@/lib/language";
 
 // Pixel/arcade display — big stamped game-title headings. Single 400 weight.
@@ -27,11 +28,15 @@ export const metadata: Metadata = {
   title: "World Seek",
   description: "Hide somewhere in the world. Let your friends find you on Street View.",
   icons: { icon: "/icon.svg" },
+  manifest: "/manifest.webmanifest",
+  applicationName: "World Seek",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "World Seek" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#090d16",
 };
 
 export default function RootLayout({
@@ -44,6 +49,7 @@ export default function RootLayout({
       <body>
         <LanguageProvider>{children}</LanguageProvider>
         <ClickSound />
+        <ServiceWorkerRegister />
       </body>
     </html>
   );

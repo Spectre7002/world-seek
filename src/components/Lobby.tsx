@@ -1,8 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "react-qr-code";
-import type { MapId, PublicState, Settings } from "@/shared/types";
+import type {
+  CaseTierKey,
+  MapId,
+  MovementMode,
+  PublicState,
+  Settings,
+} from "@/shared/types";
+import { CASE_TIER_KEYS, MOVEMENT_MODES } from "@/shared/types";
 import PlayerList from "./PlayerList";
 import LanguageSwitch from "./LanguageSwitch";
 import { useLanguage } from "@/lib/language";
@@ -26,7 +33,11 @@ export default function Lobby(props: Props) {
   const [showQR, setShowQR] = useState(false);
 
   const isGM = state.youAreGameMaster;
-  const isSolo = state.players.length < 2;
+  // Spectators are only promoted to seats when the room returns to the lobby,
+  // so this is normally a no-op — but counting seats rather than rows keeps the
+  // "solo / multiplayer" label correct even if one is still watching.
+  const seatedCount = state.players.filter((p) => !p.spectator).length;
+  const isSolo = seatedCount < 2;
   const gameUrl = typeof window !== "undefined" ? window.location.href : "";
 
   function copyLink() {
@@ -89,6 +100,24 @@ export default function Lobby(props: Props) {
     }
   }
 
+  // Case tiers: the host picks which rarities may drop. The last enabled tier
+  // cannot be switched off, because an empty pool would make the case
+  // unrollable (the server also falls back to "all tiers" defensively).
+  const enabledTiers: CaseTierKey[] =
+    state.settings.caseTiers && state.settings.caseTiers.length > 0
+      ? state.settings.caseTiers
+      : CASE_TIER_KEYS;
+
+  function toggleCaseTier(tier: CaseTierKey) {
+    if (!onUpdateSettings) return;
+    const isOn = enabledTiers.includes(tier);
+    if (isOn && enabledTiers.length === 1) return;
+    const next = isOn
+      ? enabledTiers.filter((k) => k !== tier)
+      : CASE_TIER_KEYS.filter((k) => k === tier || enabledTiers.includes(k));
+    onUpdateSettings({ caseTiers: next });
+  }
+
   function selectGameMode(gameMode: "classic" | "hp") {
     if (onUpdateSettings && state.settings.gameMode !== gameMode) {
       onUpdateSettings({
@@ -96,6 +125,47 @@ export default function Lobby(props: Props) {
         ...(gameMode === "hp" ? { hidingTimeLimit: 0 } : {}),
       });
     }
+  }
+
+  function selectMovementMode(movementMode: MovementMode) {
+    if (onUpdateSettings && state.settings.movementMode !== movementMode) {
+      onUpdateSettings({ movementMode });
+    }
+  }
+
+  // Seed: empty = random. "daily" is resolved to today's UTC date by the
+  // server, so every player who picks it plays the same sequence.
+  const seed = state.settings.seed ?? "";
+  const isDaily = seed.startsWith("daily-");
+  const [seedDraft, setSeedDraft] = useState(seed);
+
+  // Keep the input in sync when the server normalises the value (e.g. "daily"
+  // becomes "daily-2026-11-05").
+  useEffect(() => {
+    setSeedDraft(seed);
+  }, [seed]);
+
+  function applySeed() {
+    if (!onUpdateSettings) return;
+    onUpdateSettings({ seed: seedDraft.trim() });
+  }
+
+  function useDailySeed() {
+    if (!onUpdateSettings) return;
+    onUpdateSettings({ seed: "daily" });
+  }
+
+  // Ask the server for a fresh shareable seed. Generating it client-side would
+  // work too, but the server is the one that has to accept it, so this keeps a
+  // single source of truth for the format.
+  function useRandomSeed() {
+    if (!onUpdateSettings) return;
+    onUpdateSettings({ seed: "random" });
+  }
+
+  function clearSeed() {
+    if (!onUpdateSettings) return;
+    onUpdateSettings({ seed: "" });
   }
 
   function handleDecRounds() {
@@ -149,7 +219,7 @@ export default function Lobby(props: Props) {
               <h1 className="title">{t("Game lobby")}</h1>
               <LanguageSwitch />
               <span className="badge good">
-                {isSolo ? t("Solo mode") : state.settings.is1v1 ? t("1v1 Duel") : t("Multiplayer")}
+                {isSolo ? t("Solo mode") : state.is1v1 ? t("1v1 Duel") : t("Multiplayer")}
               </span>
             </div>
 
@@ -184,9 +254,9 @@ export default function Lobby(props: Props) {
 
           <div className="card stack" style={{ gap: 12 }}>
             <div className="row" style={{ justifyContent: "space-between" }}>
-              <span className="eyebrow">{t("Players")} ({state.players.length})</span>
+              <span className="eyebrow">{t("Players")} ({seatedCount})</span>
               <span className="muted" style={{ fontSize: 13 }}>
-                {state.players.length}/{state.settings.is1v1 ? 2 : 10} {t("participants")}
+                {seatedCount}/10 {t("participants")}
               </span>
             </div>
             <PlayerList players={state.players} speakingIds={speakingIds} />
@@ -318,6 +388,40 @@ export default function Lobby(props: Props) {
                 </div>
               </div>
 
+              <div className="setting-row">
+                <div className="setting-info">
+                  <span className="setting-label">{t("Movement")}</span>
+                  <span className="setting-desc">
+                    {t("NMPZ locks the panorama: no walking, and optionally no looking around.")}
+                  </span>
+                </div>
+                <div
+                  className="game-mode-buttons"
+                  role="group"
+                  aria-label={t("Movement")}
+                  style={{ marginTop: 12 }}
+                >
+                  {MOVEMENT_MODES.map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={`coverage-toggle${
+                        state.settings.movementMode === mode ? " is-on" : ""
+                      }`}
+                      aria-pressed={state.settings.movementMode === mode}
+                      disabled={!isGM}
+                      onClick={() => selectMovementMode(mode)}
+                    >
+                      {mode === "free"
+                        ? t("Free movement")
+                        : mode === "no-move"
+                          ? t("No move")
+                          : t("NMPZ")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {!isSolo && <div className="setting-row">
                 <div className="setting-info">
                   <span className="setting-label">{t("Allow unofficial coverage")}</span>
@@ -378,6 +482,7 @@ export default function Lobby(props: Props) {
                     type="button"
                     className={`coverage-toggle${state.settings.cheatsEnabled ? " is-on" : ""}`}
                     role="switch"
+                    aria-checked={state.settings.cheatsEnabled}
                     disabled={!isGM}
                     style={{ marginTop: 12 }}
                     onClick={toggleCheats}
@@ -405,6 +510,7 @@ export default function Lobby(props: Props) {
                       type="button"
                       className={`coverage-toggle${state.settings.caseEnabled ? " is-on" : ""}`}
                       role="switch"
+                      aria-checked={state.settings.caseEnabled}
                       disabled={!isGM}
                       onClick={toggleCase}
                     >
@@ -412,6 +518,84 @@ export default function Lobby(props: Props) {
                     </button>
                   </div>
                 </div>
+
+                {state.settings.caseEnabled && (
+                  <div className="setting-row">
+                    <div className="setting-info">
+                      <span className="setting-label">{t("Case tiers")}</span>
+                      <span className="setting-desc">
+                        {t("Which rarities can drop from a case")}
+                      </span>
+                    </div>
+                    <div className="case-tier-list" role="group" aria-label={t("Case tiers")}>
+                      {CASE_TIER_KEYS.map((tier) => {
+                        const on = enabledTiers.includes(tier);
+                        return (
+                          <button
+                            key={tier}
+                            type="button"
+                            className={`case-tier-chip${on ? " is-on" : ""}`}
+                            aria-pressed={on}
+                            disabled={!isGM || (on && enabledTiers.length === 1)}
+                            onClick={() => toggleCaseTier(tier)}
+                          >
+                            {t(tier)}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Seeded / daily challenge. Only affects server-picked
+                    locations (solo and HP), so it is hidden in classic mode
+                    where every target is a player. */}
+                {state.settings.gameMode !== "classic" || isSolo ? (
+                  <div className="setting-row">
+                    <div className="setting-info">
+                      <span className="setting-label">{t("Seed / daily challenge")}</span>
+                      <span className="setting-desc">
+                        {t("Same seed, same locations. Leave empty for random.")}
+                      </span>
+                    </div>
+                    <div className="seed-controls">
+                      <input
+                        className="seed-input"
+                        value={seedDraft}
+                        maxLength={40}
+                        placeholder={t("random")}
+                        disabled={!isGM}
+                        aria-label={t("Seed")}
+                        onChange={(e) => setSeedDraft(e.target.value)}
+                        onBlur={applySeed}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") applySeed();
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className={`coverage-toggle${isDaily ? " is-on" : ""}`}
+                        disabled={!isGM}
+                        onClick={useDailySeed}
+                      >
+                        {t("Daily")}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={!isGM}
+                        onClick={useRandomSeed}
+                      >
+                        {t("Random")}
+                      </button>
+                      {seed && (
+                        <button type="button" className="ghost" disabled={!isGM} onClick={clearSeed}>
+                          {t("Clear")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
             
@@ -420,7 +604,7 @@ export default function Lobby(props: Props) {
           {isGM ? (
             <div className="card stack lobby-start-card" style={{ gap: 10 }}>
               <button type="button" className="btn-primary-large" onClick={onStart}>
-                {state.settings.is1v1 ? t("Start 1v1 Duel") : isSolo ? t("Play solo") : t("Start game")}
+                {state.is1v1 ? t("Start 1v1 Duel") : isSolo ? t("Play solo") : t("Start game")}
               </button>
               {isSolo && (
                 <p className="muted" style={{ margin: 0, fontSize: 13, textAlign: "center" }}>

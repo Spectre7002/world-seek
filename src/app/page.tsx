@@ -1,11 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { emitAck } from "@/lib/socket";
 import { saveSession } from "@/lib/session";
+import { getPlayerKey } from "@/lib/playerKey";
 import { DEFAULT_EMOJI } from "@/shared/emojis";
-import BudgetClosed from "@/components/BudgetClosed";
 import EmojiPicker from "@/components/EmojiPicker";
 import SfxControl from "@/components/SfxControl";
 import MusicControl from "@/components/MusicControl";
@@ -24,24 +25,18 @@ export default function Home() {
   const [textChat, setTextChat] = useState(false);
   const [voiceChat, setVoiceChat] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  // True once the month's Maps budget is spent and the site is closed.
-  const [closed, setClosed] = useState(false);
+  // Set when the player was removed by a vote-kick, so the landing page can
+  // explain why they are back here instead of leaving them guessing.
+  const [kicked, setKicked] = useState(false);
 
-  // Ask the server whether it can still afford to run games, so a visitor sees
-  // the closed page up front rather than after typing a name and hitting start.
   useEffect(() => {
-    let live = true;
-    fetch("/api/budget")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s) => {
-        if (live && s?.exhausted) setClosed(true);
-      })
-      // A failed check is not a reason to close the door — the server refuses
-      // authoritatively at game:create anyway.
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("kicked") === "1") {
+      setKicked(true);
+      // Drop the flag so a refresh does not repeat the notice.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
 
   async function startGame() {
@@ -52,14 +47,9 @@ export default function Home() {
       gmName: name.trim(),
       gmEmoji: emoji,
       settings: { textChat, voiceChat },
+      playerKey: getPlayerKey(),
     });
     if (!res.ok) {
-      // The budget ran out between page load and now — swap to the closed page
-      // rather than inviting a retry that can't succeed until the 1st.
-      if (res.error === "budget") {
-        setClosed(true);
-        return;
-      }
       setError("The server is at capacity right now — please try again in a moment.");
       setBusy(false);
       return;
@@ -91,31 +81,22 @@ export default function Home() {
     router.push(`/game/${encodeURIComponent(c)}`);
   }
 
-  if (closed) return <BudgetClosed />;
-
   return (
     <div className="center-screen">
-      {/* Desaturated, near-transparent looping background video. Drop the file at
-          public/landing-bg.mp4 — it's served from "/landing-bg.mp4". Muted + loop +
-          playsInline so it autoplays silently on every browser. */}
-      <video
-        className="bg-video"
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        aria-hidden="true"
-        src="/landing-bg.mp4"
-        ref={(el) => {
-          // Play at half speed for a slow, ambient drift.
-          if (el) el.playbackRate = 0.5;
-        }}
-      />
-      {/* Film-grain texture layered over the blurred video + terracotta field. */}
+      {/* Film-grain texture layered over the terracotta field. */}
       <div className="bg-texture" aria-hidden="true" />
       <div className="stack home-shell" style={{ width: "min(900px, 100%)", gap: 12, position: "relative", zIndex: 1 }}>
-        <div className="home-toolbar"><LanguageSwitch /></div>
+        <div className="home-toolbar">
+          <LanguageSwitch />
+          <Link className="secondary" href="/stats" style={{ textDecoration: "none" }}>
+            📊 {t("Stats")}
+          </Link>
+        </div>
+        {kicked && (
+          <p className="muted" role="status" style={{ textAlign: "center", margin: 0 }}>
+            {t("You were removed from the game by a vote.")}
+          </p>
+        )}
         <div className="stack home-heading" style={{ gap: 6, textAlign: "center" }}>
           <span className="eyebrow" style={{ fontSize: 18 }}>
             {t("Open World · Street View")}

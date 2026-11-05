@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadGoogleMaps } from "@/lib/mapsLoader";
-import type { LatLng } from "@/shared/types";
+import type { LatLng, MovementMode } from "@/shared/types";
 import { useLanguage } from "@/lib/language";
 import { streetViewSource } from "@/lib/streetViewSource";
 
@@ -45,6 +45,21 @@ interface Props {
   interactive?: boolean;
   allowUnofficialCoverage?: boolean;
   className?: string;
+  /**
+   * Movement rule for this panorama.
+   *
+   *   "free"           — walk and look around.
+   *   "no-move"        — NMPZ: no travel to a neighbouring panorama, but the
+   *                      camera may still rotate/pitch/zoom.
+   *   "NMPZ"           — the camera is frozen as well: one static frame.
+   *
+   * The lock is applied by disabling the panorama's own navigation controls and
+   * by pinning the pano id, so a stray click on a link arrow cannot move the
+   * player. It is a client-side rule by necessity — Street View runs in the
+   * browser — but the server records the setting, so every client in the room
+   * gets the same lock.
+   */
+  movementMode?: MovementMode;
 }
 
 export default function StreetView(props: Props) {
@@ -62,6 +77,16 @@ export default function StreetView(props: Props) {
   const interactive = props.interactive !== false;
   const allowUnofficialCoverage = props.allowUnofficialCoverage === true;
   const className = props.className;
+  const movementMode: MovementMode = props.movementMode ?? "free";
+  // NMPZ: no travel. The strict variant also freezes the camera.
+  const noMove = movementMode !== "free";
+  const noPan = movementMode === "NMPZ";
+  const movementModeRef = useRef(movementMode);
+  movementModeRef.current = movementMode;
+  // The pano the player is pinned to while NMPZ is active.
+  const lockedPanoRef = useRef<string | null>(null);
+  // The camera the player is pinned to in the strict variant.
+  const lockedPovRef = useRef<{ heading: number; pitch: number } | null>(null);
 
   const wrapRef = useRef<HTMLDivElement>(null);
   const ref = useRef<HTMLDivElement>(null);
@@ -219,37 +244,144 @@ export default function StreetView(props: Props) {
     setPanoHistory(nextHistory);
   });
 
+  /**
+   * Wires the panorama listeners and returns a detach function.
+   *
+   * Kept separate from creation so React StrictMode's mount → unmount → mount
+   * cycle re-attaches listeners to the *same* panorama. Creating a second
+   * StreetViewPanorama on a container that already holds one leaks the first
+   * and leaves two renderers fighting over the same DOM node.
+   */
+  function attachListeners(
+    google: typeof globalThis.google,
+    pano: google.maps.StreetViewPanorama,
+    prefetchPano: google.maps.StreetViewPanorama
+  ): () => void {
+    function applyFollowCamera() {
+      const currentFollow = followRef.current;
+      if (!currentFollow || pano.getPano() !== currentFollow.panoId) return;
+
+      const h =
+        typeof currentFollow.heading === "number" &&
+        Number.isFinite(currentFollow.heading)
+          ? currentFollow.heading
+          : 0;
+      const p =
+        typeof currentFollow.pitch === "number" &&
+        Number.isFinite(currentFollow.pitch)
+          ? currentFollow.pitch
+          : 0;
+      pano.setPov({ heading: h, pitch: p });
+      if (
+        typeof currentFollow.zoom === "number" &&
+        Number.isFinite(currentFollow.zoom)
+      ) {
+        pano.setZoom(currentFollow.zoom);
+      }
+      setHeading(h);
+    }
+
+    pano.addListener("position_changed", function () {
+      const position = pano.getPosition();
+      lastPositionRef.current = position;
+      const currentPano = pano.getPano();
+      if (position && currentPano) {
+        positionsByPanoRef.current.set(currentPano, position);
+      }
+      if (modeRef.current === "position") {
+        const id = pano.getPano();
+        const pos = position;
+        if (id && pos && onPanoRef.current) {
+          onPanoRef.current({
+            panoId: id,
+            lat: pos.lat(),
+            lng: pos.lng(),
+          });
+        }
+      }
+      emitView(pano);
+    });
+
+    pano.addListener("pano_changed", function () {
+      const id = pano.getPano();
+      if (id) {
+        // NMPZ: if the panorama changed to anything other than the pinned one,
+        // snap straight back. This catches a link-arrow click, a keyboard
+        // shortcut, or any other path that bypasses the disabled controls.
+        const locked = lockedPanoRef.current;
+        if (locked && id !== locked) {
+          programmaticPanosRef.current.add(locked);
+          pano.setPano(locked);
+          return;
+        }
+        programmaticPanosRef.current.delete(id);
+        lastPanoRef.current = id;
+        onPanoChanged.current(id);
+        applyFollowCamera();
+        emitView(pano);
+      }
+    });
+
+    pano.addListener("status_changed", function () {
+      if (pano.getStatus() === google.maps.StreetViewStatus.OK) {
+        applyFollowCamera();
+        emitView(pano);
+      }
+    });
+
+    pano.addListener("links_changed", function () {
+      const links = (pano.getLinks() || []).filter(function (
+        link
+      ): link is google.maps.StreetViewLink {
+        return !!link && link.pano !== null && link.heading !== null;
+      });
+      linksRef.current = links;
+      const currentPano = pano.getPano();
+      if (currentPano) linksByPanoRef.current.set(currentPano, links);
+      prefetchNextPano(prefetchPano, links, pano.getPov().heading);
+    });
+
+    pano.addListener("pov_changed", function () {
+      const pov = pano.getPov();
+      if (pov) setHeading(pov.heading);
+      // Strict NMPZ: the camera is frozen, so any rotation is undone. The
+      // spawn heading is captured when the lock is armed.
+      if (movementModeRef.current === "NMPZ" && lockedPovRef.current) {
+        const want = lockedPovRef.current;
+        if (
+          Math.abs(pov.heading - want.heading) > 0.5 ||
+          Math.abs(pov.pitch - want.pitch) > 0.5
+        ) {
+          pano.setPov(want);
+          return;
+        }
+      }
+      emitView(pano);
+    });
+
+    pano.addListener("zoom_changed", function () {
+      emitView(pano);
+    });
+
+    return function () {
+      google.maps.event.clearInstanceListeners(pano);
+      google.maps.event.clearInstanceListeners(prefetchPano);
+    };
+  }
+
   useEffect(function () {
     let cancelled = false;
-    let clearListeners: (() => void) | null = null;
+    let detach: (() => void) | null = null;
 
     loadGoogleMaps().then(function (google) {
-      if (
-        cancelled ||
-        !ref.current ||
-        !prefetchRef.current ||
-        panoRef.current
-      )
-        return;
+      if (cancelled || !ref.current || !prefetchRef.current) return;
 
-      const pano = new google.maps.StreetViewPanorama(ref.current, {
-        visible: true,
-        addressControl: false,
-        showRoadLabels: false,
-        fullscreenControl: false,
-        motionTracking: false,
-        motionTrackingControl: false,
-        panControl: false,
-        linksControl: interactive,
-        clickToGo: interactive,
-        zoomControl: interactive,
-        scrollwheel: interactive,
-        disableDefaultUI: !interactive,
-      });
-
-      const prefetchPano = new google.maps.StreetViewPanorama(
-        prefetchRef.current,
-        {
+      // Reuse an existing panorama when StrictMode re-runs this effect; only
+      // build one the first time.
+      let pano = panoRef.current;
+      let prefetchPano = prefetchPanoRef.current;
+      if (!pano || !prefetchPano) {
+        pano = new google.maps.StreetViewPanorama(ref.current, {
           visible: true,
           addressControl: false,
           showRoadLabels: false,
@@ -257,116 +389,76 @@ export default function StreetView(props: Props) {
           motionTracking: false,
           motionTrackingControl: false,
           panControl: false,
-          linksControl: false,
-          clickToGo: false,
-          zoomControl: false,
-          scrollwheel: false,
-          disableDefaultUI: true,
-        }
-      );
+          // NMPZ disables travel (link arrows and click-to-go) while leaving the
+          // camera controls alone; the strict variant disables those too.
+          linksControl: interactive && !noMove,
+          clickToGo: interactive && !noMove,
+          zoomControl: interactive && !noPan,
+          scrollwheel: interactive && !noPan,
+          disableDefaultUI: !interactive,
+        });
 
-      clearListeners = function () {
-        google.maps.event.clearInstanceListeners(pano);
-        google.maps.event.clearInstanceListeners(prefetchPano);
-      };
+        prefetchPano = new google.maps.StreetViewPanorama(
+          prefetchRef.current,
+          {
+            visible: true,
+            addressControl: false,
+            showRoadLabels: false,
+            fullscreenControl: false,
+            motionTracking: false,
+            motionTrackingControl: false,
+            panControl: false,
+            linksControl: false,
+            clickToGo: false,
+            zoomControl: false,
+            scrollwheel: false,
+            disableDefaultUI: true,
+          }
+        );
 
-      function applyFollowCamera() {
-        const currentFollow = followRef.current;
-        if (!currentFollow || pano.getPano() !== currentFollow.panoId) return;
-
-        const h =
-          typeof currentFollow.heading === "number" &&
-          Number.isFinite(currentFollow.heading)
-            ? currentFollow.heading
-            : 0;
-        const p =
-          typeof currentFollow.pitch === "number" &&
-          Number.isFinite(currentFollow.pitch)
-            ? currentFollow.pitch
-            : 0;
-        pano.setPov({ heading: h, pitch: p });
-        if (
-          typeof currentFollow.zoom === "number" &&
-          Number.isFinite(currentFollow.zoom)
-        ) {
-          pano.setZoom(currentFollow.zoom);
-        }
-        setHeading(h);
+        panoRef.current = pano;
+        prefetchPanoRef.current = prefetchPano;
       }
 
-      pano.addListener("position_changed", function () {
-        const position = pano.getPosition();
-        lastPositionRef.current = position;
-        const currentPano = pano.getPano();
-        if (position && currentPano) {
-          positionsByPanoRef.current.set(currentPano, position);
-        }
-        if (modeRef.current === "position") {
-          const id = pano.getPano();
-          const pos = position;
-          if (id && pos && onPanoRef.current) {
-            onPanoRef.current({
-              panoId: id,
-              lat: pos.lat(),
-              lng: pos.lng(),
-            });
-          }
-        }
-        emitView(pano);
-      });
-
-      pano.addListener("pano_changed", function () {
-        const id = pano.getPano();
-        if (id) {
-          programmaticPanosRef.current.delete(id);
-          lastPanoRef.current = id;
-          onPanoChanged.current(id);
-          applyFollowCamera();
-          emitView(pano);
-        }
-      });
-
-      pano.addListener("status_changed", function () {
-        if (pano.getStatus() === google.maps.StreetViewStatus.OK) {
-          applyFollowCamera();
-          emitView(pano);
-        }
-      });
-
-      pano.addListener("links_changed", function () {
-        const links = (pano.getLinks() || []).filter(function (
-          link
-        ): link is google.maps.StreetViewLink {
-          return !!link && link.pano !== null && link.heading !== null;
-        });
-        linksRef.current = links;
-        const currentPano = pano.getPano();
-        if (currentPano) linksByPanoRef.current.set(currentPano, links);
-        prefetchNextPano(prefetchPano, links, pano.getPov().heading);
-      });
-
-      pano.addListener("pov_changed", function () {
-        const pov = pano.getPov();
-        if (pov) setHeading(pov.heading);
-        emitView(pano);
-      });
-
-      pano.addListener("zoom_changed", function () {
-        emitView(pano);
-      });
-
-      panoRef.current = pano;
-      prefetchPanoRef.current = prefetchPano;
+      detach = attachListeners(google, pano, prefetchPano);
       setReady(true);
     });
 
     return function () {
       cancelled = true;
-      if (clearListeners) clearListeners();
-      panoRef.current = null;
-      prefetchPanoRef.current = null;
+      // Detach listeners but keep the panorama instances: the next effect run
+      // re-attaches to them rather than creating a duplicate.
+      if (detach) detach();
     };
   }, []);
+
+  // Apply the movement rule to an already-built panorama. The options above
+  // only take effect at construction, and the panorama is deliberately reused
+  // across StrictMode remounts, so the lock has to be re-applied on change.
+  useEffect(
+    function () {
+      const pano = panoRef.current;
+      if (!pano) return;
+      pano.setOptions({
+        linksControl: interactive && !noMove,
+        clickToGo: interactive && !noMove,
+        zoomControl: interactive && !noPan,
+        scrollwheel: interactive && !noPan,
+      });
+      if (noMove) {
+        // Pin the current panorama (or the requested one) as the only reachable
+        // frame, and remember the spawn camera for the strict variant.
+        const pinned = panoId ?? pano.getPano() ?? null;
+        lockedPanoRef.current = pinned;
+        const pov = pano.getPov();
+        lockedPovRef.current = noPan && pov ? { heading: pov.heading, pitch: pov.pitch } : null;
+      } else {
+        lockedPanoRef.current = null;
+        lockedPovRef.current = null;
+      }
+    },
+    [ready, noMove, noPan, interactive, panoId],
+  );
 
   useEffect(
     function () {
@@ -520,7 +612,7 @@ export default function StreetView(props: Props) {
     <div
       ref={wrapRef}
       style={{ position: "relative", width: "100%", height: "100%" }}
-      className={className}
+      className={`${className ?? ""}${noPan ? " street-view-strict-lock" : ""}`}
       onClickCapture={function (event) {
         const target = event.target;
         if (target instanceof HTMLElement && target.closest("a")) {
@@ -567,8 +659,8 @@ export default function StreetView(props: Props) {
         })}
         <i />
       </div>
-      <div className="sv-topbar">
-        {interactive && (
+      {interactive && (
+        <div className="sv-topbar">
           <div className="sv-navigation">
             <button
               type="button"
@@ -585,8 +677,8 @@ export default function StreetView(props: Props) {
               {t("Back")}
             </button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <div
         className="sv-compass-dial"
         aria-label={`Heading ${Math.round(heading)} degrees`}

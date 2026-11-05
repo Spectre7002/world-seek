@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>World Seek — offline</title>
+    <style>
+      :root {
+        --bg: #090d16;
+        --text: #f9fafb;
+        --dim: #9ca3af;
+        --accent: #6366f1;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        text-align: center;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 40px;
+        margin: 0;
+      }
+      p {
+        color: var(--dim);
+        margin: 0;
+        max-width: 34ch;
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 12px;
+        padding: 10px 22px;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>🌍 You're offline</h1>
+      <p>
+        World Seek needs a connection to reach Street View. Reconnect to the
+        internet and try again.
+      </p>
+      <button onclick="location.reload()">Retry</button>
+    </main>
+  </body>
+</html>

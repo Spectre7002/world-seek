@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Spell table check
+        run: npm run check:spells
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Lint
+        run: npm run lint
+
+      # The build needs a Maps key placeholder; it is only inlined, not called.
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ci-placeholder

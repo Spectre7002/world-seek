@@ -1,0 +1,19 @@
+{
+  "name": "World Seek",
+  "short_name": "World Seek",
+  "description": "Hide somewhere in the world. Let your friends find you on Street View.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

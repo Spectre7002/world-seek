@@ -14,6 +14,8 @@ import { useLanguage } from "@/lib/language";
 interface Props {
   state: PublicState;
   onHide: (spot: HidingSpot) => void;
+  /** Timer expired with no valid spot: let the server pick a covered location. */
+  onAutoHide: () => void;
   onValidateHide: (spot: HidingSpot) => Promise<{ ok: boolean; spot?: HidingSpot; reason?: string }>;
   speakingIds?: Set<string>;
 }
@@ -24,6 +26,7 @@ export default function HidingPhase(props: Props) {
   const { t } = useLanguage();
   const state = props.state;
   const onHide = props.onHide;
+  const onAutoHide = props.onAutoHide;
   const onValidateHide = props.onValidateHide;
   const speakingIds = props.speakingIds;
 
@@ -32,6 +35,34 @@ export default function HidingPhase(props: Props) {
   const [resolved, setResolved] = useState<ResolvedPano | null>(null);
   const [coverage, setCoverage] = useState<Coverage>("unknown");
   const [mapValidation, setMapValidation] = useState<"unknown" | "checking" | "ok" | "outside_map" | "outside_selected_country" | "outside_selected_region" | "not_official_road">("unknown");
+
+  // A late joiner has no seat, so they cannot pick a spot. Show the same
+  // waiting screen a hidden player sees, with spectator copy.
+  if (state.youAreSpectator) {
+    return (
+      <div className="center-screen">
+        <div className="stack" style={{ width: 420, gap: 18 }}>
+          <h1 className="title">👀 {t("Spectating")}</h1>
+          <p className="muted" style={{ margin: 0 }}>
+            {t("You joined mid-game, so you're watching this one. You'll get a seat in the next game.")}
+          </p>
+          <div className="card stack">
+            <WaitingBar
+              label={t("Players hidden")}
+              current={state.hiddenCount}
+              total={state.expectedHiders}
+            />
+            <PlayerList
+              players={state.players}
+              showHidden
+              hiddenLabel={t("hidden")}
+              speakingIds={speakingIds}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (state.youHaveHidden) {
     return (
@@ -109,7 +140,12 @@ export default function HidingPhase(props: Props) {
   function handleTimeUp() {
     if (resolved && coverage === "ok" && mapValidation === "ok") {
       confirm();
+      return;
     }
+    // No valid spot chosen in time. The server also expires the phase on its
+    // own clock, so this is a courtesy that gets the player's own spot in
+    // before the server drops them somewhere random.
+    onAutoHide();
   }
 
   const canHide = !!resolved && coverage === "ok" && mapValidation === "ok";
@@ -148,7 +184,13 @@ export default function HidingPhase(props: Props) {
           )}
           <div className="round-hud">
             <span>{resolved ? t("Choose your hiding spot") : t("First, choose a spot on the map")}</span>
-            {hidingTime > 0 && <Timer seconds={hidingTime} onExpire={handleTimeUp} />}
+            {(hidingTime > 0 || state.deadlineAt != null) && (
+              <Timer
+                seconds={hidingTime}
+                deadlineAt={state.deadlineAt}
+                onExpire={handleTimeUp}
+              />
+            )}
           </div>
 
           <div className="roster" role="status" aria-label={t("Hiding status")}>
@@ -159,7 +201,8 @@ export default function HidingPhase(props: Props) {
               </span>
             </div>
             <div className="roster-list">
-              {state.players.map(function (p) {
+              {/* Spectators have no seat, so they are never "picking" a spot. */}
+              {state.players.filter(function (p) { return !p.spectator; }).map(function (p) {
                 return (
                   <div
                     key={p.id}
@@ -196,6 +239,7 @@ export default function HidingPhase(props: Props) {
             onChange={pick}
             markerIcon={state.youEmoji}
             coverage
+            restriction={state.mapBounds}
           />
         </FloatingMap>
         {query && (

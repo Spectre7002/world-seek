@@ -18,7 +18,7 @@ contains the current maintained implementation of the game.
   single source of truth (clients send intents; the server runs the game and pushes a
   redacted per-player state)
 - 🗺️ **Google Maps + Street View** for hiding and guessing
-- 🎮 **Classic, solo, and HP game modes**, including an optional 1v1 duel flow
+- 🎮 **Classic, solo, and HP game modes** (a 2-player HP match is a 1v1 duel)
 - 🎁 Optional **Special Case** rewards that reveal a randomized location hint
 - 🔮 Optional host-controlled **Cheat Menu** for testing or custom rounds
 - 💬 **Text chat** over Socket.IO, scoped per game
@@ -118,7 +118,7 @@ build a Dockerfile, including a VPS, Docker Compose, Kubernetes, or a Docker-bas
 > so it must be passed at **build time** (`--build-arg`), not just as a runtime env var. Pass it
 > only at runtime and Maps/Street View will not initialize correctly. The TURN variables are
 > also `NEXT_PUBLIC_*` settings and must be passed at build time. `ALLOWED_ORIGIN`, `PORT`,
-> `MAPS_BUDGET_USD`, and `BUDGET_STATE_PATH` are runtime settings.
+> and `HISTORY_STATE_PATH` are runtime settings.
 
 ### Build & run directly
 
@@ -131,10 +131,9 @@ docker build \
   --build-arg NEXT_PUBLIC_TURN_CREDENTIAL=client-safe-credential \
   -t world-seek .
 
-# Run — keep /data on a persistent volume to preserve the budget counter.
+# Run — keep /data on a persistent volume to preserve the finished-game history.
 docker run -p 3000:3000 \
   -e ALLOWED_ORIGIN=https://worldseek.yourdomain.com \
-  -e MAPS_BUDGET_USD=0 \
   -v world-seek-data:/data \
   world-seek
 ```
@@ -144,77 +143,57 @@ The TURN build args are optional; omit them to use the public fallback TURN serv
 ### Or with Docker Compose
 
 A [`compose.yaml`](compose.yaml) is included. It already declares the named volume the
-[Maps usage counter](#-approximate-google-maps-usage-budget) needs. Copy `.env.example` to `.env.local`,
+finished-game history store needs. Copy `.env.example` to `.env.local`,
 set the Maps key, and run:
 
 ```sh
 docker compose --env-file .env.local up --build
 ```
 
-Compose passes the Maps and optional TURN settings as build args, and the budget/origin/port
-settings at runtime. The bundled compose file publishes port 3000 by default; set `PORT` in
-`.env.local` to use a different host and container port.
+Compose passes the Maps and optional TURN settings as build args, and the origin/port settings
+at runtime. The bundled compose file publishes port 3000 by default; set `PORT` in `.env.local`
+to use a different host and container port.
 
 ### Environment variables
 
 | Variable | When | Required | Purpose |
 |---|---|---|---|
 | `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | **build** | ✅ | Maps + Street View; inlined into the client bundle |
-| `ALLOWED_ORIGIN` | runtime | **production** | Your public `https://…` origin; restricts Socket.IO CORS. If unset, Socket.IO accepts requests from any origin. |
+| `ALLOWED_ORIGIN` | runtime | **production** | Your public `https://...` origin; used for the Socket.IO CORS allowlist. If unset in production, cross-origin sockets are refused (same-origin still works). |
 | `PORT` | runtime | — | Listen port (defaults to `3000`) |
 | `NEXT_PUBLIC_TURN_URL` | **build** | — | Your own TURN server URL (e.g. `turn:turn.yourdomain.com:3478`); see [Voice chat & TURN](#-voice-chat--turn) below |
 | `NEXT_PUBLIC_TURN_USERNAME` | **build** | — | TURN credential username, paired with `NEXT_PUBLIC_TURN_URL` |
 | `NEXT_PUBLIC_TURN_CREDENTIAL` | **build** | — | TURN credential passed to clients; do not use a secret that must remain private |
-| `MAPS_BUDGET_USD` | runtime | — | Approximate monthly admission budget in USD (defaults to `0`, allowing only the configured base allowance); see [Approximate Google Maps usage budget](#-approximate-google-maps-usage-budget) |
-| `BUDGET_STATE_PATH` | runtime | — | Where the budget counter is stored (defaults to `/data/budget.json`) |
+| `HISTORY_STATE_PATH` | runtime | — | Where finished games are stored for the stats page and leaderboard (defaults to `/data/history.json`) |
 
-### 💸 Approximate Google Maps usage budget
+### 💸 Google Maps usage reporting
 
-Google's actual charges depend on the APIs/SKUs used, the project's billing terms, and current
-Google Maps Platform pricing. The server-side meter is only an **approximate admission guard**;
-it is not a Google Cloud billing cap, does not measure actual API requests, and cannot guarantee
-that your bill stays under a specific amount. Check your Google Cloud billing reports and set
-budgets/alerts and API quotas there as well.
+World Seek **does not** gate games on a local Maps budget. An earlier version kept a monthly
+admission meter and closed the site when it ran out, but that meter is deliberately disabled:
+Google Cloud Monitoring is the source of truth for quota visibility, and a silent local cutoff
+failed badly — maps simply stopped rendering mid-round. Game starts are never refused for
+budget reasons.
 
-When a game starts, the server charges a conservative allowance against a monthly counter:
+What remains is an informational boot-time query. On startup the server tries to read the
+month's actual request counts from Google Cloud Monitoring for the project `worldseek` and
+prints a summary:
 
-- Multiplayer: 150 map-load units and 75 Street View panorama units per connected player.
-- Solo: 2 map-load units and 1 panorama unit per round.
-
-These are the server's configured accounting units, not a promise that each player actually
-generates exactly that many billable requests. The meter uses the pricing assumptions in
-`src/server-logic/budget.ts` to split `MAPS_BUDGET_USD` evenly between its map and panorama
-ceilings. It currently assumes 10,000 map units and 5,000 panorama units before paid usage;
-Google's free allowances and prices can change, so verify current terms independently. The
-default budget is `$0`, allowing admission only within those configured base allowances.
-
-If the counter cannot afford another game, the home page shows a closed-budget message and
-the server refuses new rooms or game starts. The counter rolls over on the first day of each
-UTC month. `GET /api/budget` returns the local counter, its ceilings, the configured budget,
-and the estimated number of multiplayer player-games remaining:
-
-```bash
-curl https://worldseek.yourdomain.com/api/budget
+```
+=== GOOGLE MAPS API LIMITS (2026-11) ===
+Map Loads: 4230 / 10000 (Remaining: 5770)
+Panoramas: 2115 / 5000 (Remaining: 2885)
+Player-games left: 38
 ```
 
-> **The local admission counter needs persistent storage**, or it resets on every redeploy.
-> The included Docker Compose setup mounts a named volume at `/data`. For a direct Docker
-> deployment, mount a persistent volume at `/data` yourself. The image creates that directory
-> and grants its unprivileged runtime user write access, but the volume must be managed by the
-> host/platform and must not be removed during redeploys.
->
-> On startup, the server also tries to query actual request counts from Google Cloud Monitoring
-> for the Google Cloud project `worldseek` and prints them:
->
-> ```
-> [budget] 2026-10: 4230/10000 map loads, 2115/5000 panoramas — 38 player-games left
-> ```
->
-> This informational query requires the `gcloud` CLI, credentials with access to Cloud
-> Monitoring, and the Monitoring API enabled for that project. The Docker image does not include
-> `gcloud`, so it logs a warning and continues unless you add/configure it. If the query fails,
-> game admission still uses the local counter. These Cloud Monitoring results do not update or
-> validate that counter.
+The "player-games left" figure is only an estimate, derived from the configured accounting
+units in `src/server-logic/budget.ts` (150 map + 75 panorama events per multiplayer
+player-game), not a measured value. Verify current Google Maps Platform pricing and free
+allowances yourself; they can change.
+
+This query requires the `gcloud` CLI, credentials with access to Cloud Monitoring, and the
+Monitoring API enabled for the project. The Docker image does not include `gcloud`, so it logs
+an info line and continues. Because it cannot cap anything, treat it as a convenience printout
+and rely on your own Google Cloud billing budget and alerts for the real guard.
 
 #### Installing and configuring `gcloud` (optional)
 
@@ -240,13 +219,8 @@ The last command should print an access token. The account must have permission 
 Monitoring metrics for the `worldseek` project (for example, the **Monitoring Viewer** role).
 After installing the CLI, close and reopen the terminal (and restart VS Code if the server is
 started from its integrated terminal) so the updated `PATH` is available. Then restart the World
-Seek server. If `gcloud` is not installed or
-authentication fails, the server continues to use the local budget counter and skips the
-informational Cloud Monitoring query.
-
-The counter is charged in full when a game starts, including games that are abandoned. Review
-Google Cloud's actual usage and billing reports regularly; the usage query is informational and
-the local counter is not a substitute for a billing budget or quota.
+Seek server. If `gcloud` is not installed or authentication fails, the server simply skips the
+informational usage query and starts normally.
 
 ### 🎙️ Voice chat & TURN
 
@@ -320,56 +294,98 @@ you. Keep it to a single instance.
 - **HP Mode** is a competitive health-based mode for multiplayer. The server selects a target
   location each round, players see a health bar and guess simultaneously, and damage is based
   on the difference between the best and weaker guesses. The leading player earns a multiplier;
-  a player reaching zero HP ends the match. The hiding timer and fixed round-count controls
-  are not used in this mode.
+  a player reaching zero HP ends the match, and the match is also capped at 20 rounds so an
+  all-draw game cannot run forever. The first guess in starts a 15-second grace window for
+  everyone else. The hiding timer is not used in this mode, and a two-player match is a 1v1 duel.
 - The host can select global, continent, or country location pools, configure finding timers,
   and allow unofficial Street View coverage. A room can be shared by copying its link or
   scanning the lobby QR code.
-- **Special Case** can be enabled with either standard or better odds. Opening a case shows a
-  rarity tier and one hint, such as a continent, hemisphere, latitude/longitude band, or
-  search-radius overlay. The hint is consumed for the current finding round.
+- **Special Case** can be enabled with either standard or better odds, and the host can choose
+  which rarity tiers are allowed to drop. Opening a case rolls a tier, then an item within it,
+  and shows one hint (continent, hemisphere, latitude/longitude band, search-radius overlay,
+  antinode, or a 5 km circle). A pity timer guarantees a better tier after a long run of blues,
+  and a duplicate guard avoids handing out the same hint twice in a row. Cases can also drop
+  spells (Compass / Heatmap / Freeze / Reroll).
 - **Cheats** are disabled by default and are intended for testing or custom games. When the
-  host enables them, the finding screen opens the cheat menu with `End`, allowing a circle,
-  latitude-band, or longitude-band offset around the target.
+  host enables them, the finding screen shows a **Cheats** button that opens the cheat menu,
+  allowing a circle, latitude-band, longitude-band, outline, antipode, or 5 km offset around
+  the target.
 
-### 🔄 Reconnection & join-locking
+### 🔄 Reconnection & late joining
 
 - A session token is stored in `localStorage` per game. Refresh or reconnect mid-game and you
   drop back into your seat.
-- New players **cannot join once the game has started** — only reconnections with a valid
-  token are honored.
+- New players who open a running game get a **spectator seat**: they watch the current game and
+  are promoted to a real seat when the room returns to the lobby. They are not rejected.
 
 ## 🗂️ Project layout
 
 ```
 server/                 custom Node server (Next + Socket.IO) and event handlers
-src/shared/             types, scoring (haversine + decay), code/token generation — shared
+src/shared/             types, schemas (zod), scoring (haversine + decay), code/token
+                        generation, achievements, spell table — shared by server and client
 src/server-logic/       in-memory store, state-machine transitions, per-player projection,
-                        map boundaries and usage-budget accounting
+                        map boundaries, country-geometry loader, finished-game history,
+                        structured logger
 server/caseEngine.ts    Special Case rarity rolls and location-hint generation
-src/lib/                client socket, session storage, useGame hook, Google Maps loader,
-                        useTextChat / useVoiceChat hooks
-src/components/         MapPicker, StreetView, the phase screens, TextChat, VoiceChat,
-                        VoiceSettings
-src/app/                home page + /game/[code] room shell
+src/lib/                client socket, session storage, player key, useGame / useStats hooks,
+                        Google Maps loader, dialog focus-trap hook, useTextChat / useVoiceChat
+src/components/         MapPicker, StreetView, the phase screens, RoundHistory, TextChat,
+                        VoiceChat, VoiceSettings
+src/app/                home page, /game/[code] room shell, /stats page
+maps/                   generated location pools and country geometry (GeoJSON)
+public/data/            country/continent outlines used by the client map picker
 scripts/smoke.mjs       headless end-to-end test of the full game loop (server must be running)
 scripts/load.mjs        Socket.IO load harness for concurrent rooms (server must be running)
 scripts/multiplayer-capacity.mjs
                         multiplayer capacity benchmark
 scripts/verify-street-view-source.mjs
                         verifies the configured Street View source
-scripts/api_limits.bat  helper for checking API limits on Windows
+scripts/spells-check.ts validates the case table, pity timer and duplicate protection
+tests/                  unit tests (scoring, case engine, transitions) — `npm test`
 ```
+
+### 🧰 Developer commands
+
+| Command | Does |
+|---|---|
+| `npm run dev` | Custom server (Next + Socket.IO) via `tsx watch` |
+| `npm run build` / `npm start` | Production build / run |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm test` | Node test runner over `tests/*.test.ts` (scoring, case engine, transitions) |
+| `npm run lint` | `next lint` |
+| `npm run check:spells` | Validates the case table, pity timer and duplicate protection |
+
+## 📊 Stats and leaderboard
+
+Every finished game is written to `HISTORY_STATE_PATH` (default `/data/history.json`) with each
+player's score, rank, best distance, perfect guesses, and rounds guessed. That store powers:
+
+- **`/stats`** — your personal record: games, wins, best score, best guess, per-mode and per-map
+  breakdowns, recent games, and nine achievements.
+- **The all-time leaderboard** on the same page, filterable by map and mode. One row per player,
+  so a strong player cannot fill the board.
+
+Your record is keyed to a random id in `localStorage` — it is not an account, and it is never
+shown to other players. Clearing site data starts a fresh record. The store is capped at 2000
+games and written atomically (temp file + rename), so a crash mid-write cannot truncate it. If the
+volume is not writable the server logs a single `[history]` warning and keeps the games in memory
+only, exactly like the Maps budget counter.
 
 ## 🔌 HTTP endpoints
 
-The custom server exposes two small JSON endpoints in addition to the Next.js pages and
+The custom server exposes a few small JSON endpoints in addition to the Next.js pages and
 Socket.IO transport:
 
-- `GET /api/budget` returns the local monthly Maps admission counter and remaining allowance.
+- `GET /api/health` returns uptime, room count, connected players, and a flag noting that the
+  local Maps admission meter is disabled.
 - `GET /api/road-snap?lat=<latitude>&lng=<longitude>` returns the nearest generated location
-  from the global pool, or a JSON error (`invalid_coordinates` / `not_found`) when no match is
-  available.
+  from the global pool (via a grid spatial index over the global pool), or a JSON error
+  (`invalid_coordinates` / `not_found`) when no match is
+  available. Rate-limited to 60 requests per 60 s per IP.
+
+Stats and the leaderboard are Socket.IO events (`stats:get`, `leaderboard:get`), not HTTP
+endpoints, so they share the same transport and rate limiting as the rest of the game.
 
 For example:
 
@@ -386,18 +402,35 @@ node scripts/smoke.mjs
 ```
 
 This drives three simulated players through create → join → start → hide → guess → results →
-finish → reconnect, asserting the server's behavior (no Maps key needed).
+finish → reconnect, asserting the server's behavior (no Maps key needed). It also covers solo,
+HP, the server-authoritative phase clock and host **Skip phase**, spectators, host succession,
+cases and spells, seeded games, reactions, vote-kick, rematch, and the persistence path: a
+finished game is recorded exactly once, the round log is hidden during finding, and
+`stats:get` / `leaderboard:get` return the recorded result.
+
+Fast unit tests (no server needed) cover scoring, the case engine, and core transitions:
+
+```bash
+npm test
+```
+
+Run it with a throwaway history file so the assertions do not depend on earlier runs:
+
+```bash
+HISTORY_STATE_PATH=./.tmp/history.json node scripts/smoke.mjs
+```
 
 ## ⚠️ Known limitations (MVP)
 
-- 💾 Active room/game state is in-memory — a server restart drops live games. The Maps admission
-  counter is separate and can persist in the `/data` volume.
+- 💾 Active room/game state is in-memory — a server restart drops live games. Finished-game
+  history is separate and persists in the `/data` volume.
 - 🛡️ Anti-cheat is panoId-based (the hider's coords aren't sent to guessers until the reveal),
   which is friendly-game grade, not bulletproof.
 - 🩸 HP Mode is currently server-memory state intended for small matches; it is not a
   persistent competitive ranking or matchmaking system.
-- ⏱️ Hiding and finding timers are optional and default to unlimited. Without a timer, phases
-  advance when everyone has acted; the host can also advance from results.
+- ⏱️ Hiding and finding timers are optional and default to unlimited. Timers are
+  server-authoritative: a phase advances when its deadline passes even if a client is idle, and
+  the host can skip the current phase (or advance from results) at any time.
 
 ## 📜 License
 

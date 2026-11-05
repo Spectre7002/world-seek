@@ -18,14 +18,8 @@ if "%NGROK_DOMAIN%"=="" (
   start "Ngrok Tunnel" cmd /k "ngrok http --url=%NGROK_DOMAIN% 3000"
 )
 
-set "SERVER_READY="
-powershell -NoProfile -ExecutionPolicy Bypass -Command "if (Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"
-if not errorlevel 1 (
-  echo An existing process is already listening on port 3000.
-) else (
-  echo Starting the game server...
-  start "World Seek Server" cmd /k "npm run dev"
-)
+echo Starting the game server...
+start "World Seek Server" "%ComSpec%" /k "cd /d ""%~dp0"" && npm run dev"
 echo Waiting for the server to start...
 
 for /l %%i in (1,1,60) do (

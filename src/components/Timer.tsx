@@ -6,12 +6,24 @@ import { playTimeTickSfx } from "@/lib/sfx";
 interface Props {
   seconds: number;
   capSeconds?: number | null;
+  /**
+   * Server-authoritative deadline (ms since epoch). When set, the countdown is
+   * derived from the wall clock instead of a locally-started interval, so a
+   * refresh, a background tab, or a slow render cannot desync the timer from
+   * the server. `seconds` is then only used to decide whether to render at all.
+   */
+  deadlineAt?: number | null;
   onExpire?: () => void;
+}
+
+function secondsUntil(deadlineAt: number): number {
+  return Math.max(0, Math.ceil((deadlineAt - Date.now()) / 1000));
 }
 
 export default function Timer(props: Props) {
   const initialSeconds = props.seconds;
   const capSeconds = props.capSeconds;
+  const deadlineAt = props.deadlineAt ?? null;
   const onExpire = props.onExpire;
   const expiredRef = useRef(false);
   const onExpireRef = useRef(onExpire);
@@ -25,15 +37,23 @@ export default function Timer(props: Props) {
   };
 
   const [timeLeft, setTimeLeft] = useState<number>(() =>
-    getEffectiveInitial(initialSeconds, capSeconds),
+    deadlineAt != null
+      ? secondsUntil(deadlineAt)
+      : getEffectiveInitial(initialSeconds, capSeconds),
   );
 
+  // A new deadline means a new phase: reset the expiry latch so the next
+  // countdown can fire its own onExpire.
   useEffect(
     function () {
       expiredRef.current = false;
+      if (deadlineAt != null) {
+        setTimeLeft(secondsUntil(deadlineAt));
+        return;
+      }
       setTimeLeft(getEffectiveInitial(initialSeconds, capSeconds));
     },
-    [initialSeconds],
+    [initialSeconds, deadlineAt],
   );
 
   useEffect(
@@ -54,6 +74,22 @@ export default function Timer(props: Props) {
     [capSeconds, initialSeconds],
   );
 
+  // Server-clock mode: recompute from the deadline every tick. The server also
+  // advances the phase on its own, so onExpire here is only a local courtesy
+  // (e.g. auto-submitting the current pin) and never the source of truth.
+  useEffect(
+    function () {
+      if (deadlineAt == null) return;
+      const interval = setInterval(function () {
+        setTimeLeft(secondsUntil(deadlineAt));
+      }, 250);
+      return function () {
+        clearInterval(interval);
+      };
+    },
+    [deadlineAt],
+  );
+
   useEffect(
     function () {
       if (timeLeft <= 0) {
@@ -63,6 +99,9 @@ export default function Timer(props: Props) {
         }
         return;
       }
+
+      // Local countdown, used only when the server sent no deadline.
+      if (deadlineAt != null) return;
 
       const interval = setInterval(function () {
         setTimeLeft(function (prev) {
@@ -77,7 +116,7 @@ export default function Timer(props: Props) {
         clearInterval(interval);
       };
     },
-    [timeLeft],
+    [timeLeft, deadlineAt],
   );
 
   useEffect(
@@ -88,7 +127,7 @@ export default function Timer(props: Props) {
     [timeLeft],
   );
 
-  if (initialSeconds <= 0 && (!capSeconds || capSeconds <= 0)) {
+  if (deadlineAt == null && initialSeconds <= 0 && (!capSeconds || capSeconds <= 0)) {
     return null;
   }
 

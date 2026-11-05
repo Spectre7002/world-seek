@@ -34,8 +34,78 @@ function buildIceServers(): RTCIceServer[] {
 }
 const LS_VOICE_MODE = "ws-voice-mode";
 const LS_MIC_DEVICE = "ws-mic-device";
+const LS_PTT_KEY = "ws-ptt-key";
+const LS_PEER_VOLUMES = "ws-peer-volumes";
 const SPEAK_THRESHOLD = 0.01;
 const SPEAK_INTERVAL_MS = 100;
+
+/**
+ * Per-peer playback settings. `volume` is 0..1 and `muted` is a hard off, kept
+ * separate from volume so unmuting restores the previous level instead of
+ * jumping to full.
+ */
+export interface PeerAudio {
+  volume: number;
+  muted: boolean;
+}
+
+const DEFAULT_PEER_AUDIO: PeerAudio = { volume: 1, muted: false };
+
+function loadPeerAudio(): Record<string, PeerAudio> {
+  try {
+    const raw = localStorage.getItem(LS_PEER_VOLUMES);
+    if (!raw) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return {};
+    const out: Record<string, PeerAudio> = {};
+    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof value !== "object" || value === null) continue;
+      const v = value as Record<string, unknown>;
+      const volume = typeof v.volume === "number" && Number.isFinite(v.volume)
+        ? Math.max(0, Math.min(1, v.volume))
+        : 1;
+      out[id] = { volume: volume, muted: v.muted === true };
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function savePeerAudio(map: Record<string, PeerAudio>): void {
+  try {
+    localStorage.setItem(LS_PEER_VOLUMES, JSON.stringify(map));
+  } catch {}
+}
+
+/**
+ * The push-to-talk key, stored as a `KeyboardEvent.code` (e.g. "Space",
+ * "KeyV", "ShiftLeft"). `code` rather than `key` so the binding survives
+ * keyboard layouts.
+ */
+function loadPttKey(): string {
+  try {
+    const v = localStorage.getItem(LS_PTT_KEY);
+    if (v && v.length > 0 && v.length <= 32) return v;
+  } catch {}
+  return "Space";
+}
+
+/** Human-readable label for a `KeyboardEvent.code`. */
+export function pttKeyLabel(code: string): string {
+  if (code === "Space") return "Space";
+  if (code.startsWith("Key")) return code.slice(3);
+  if (code.startsWith("Digit")) return code.slice(5);
+  if (code.startsWith("Numpad")) return "Num " + code.slice(6);
+  if (code.startsWith("Arrow")) return code.slice(5);
+  if (code === "ShiftLeft") return "L-Shift";
+  if (code === "ShiftRight") return "R-Shift";
+  if (code === "ControlLeft") return "L-Ctrl";
+  if (code === "ControlRight") return "R-Ctrl";
+  if (code === "AltLeft") return "L-Alt";
+  if (code === "AltRight") return "R-Alt";
+  return code;
+}
 
 function loadMode(): VoiceMode {
   try {
@@ -64,6 +134,13 @@ export interface VoiceChatHook {
   localAnalyserRef: React.RefObject<AnalyserNode | null>;
   getAudioCtx: () => AudioContext;
   acquireMic: (deviceId?: string) => Promise<void>;
+  /** Per-player playback settings, keyed by player id. */
+  peerAudio: Record<string, PeerAudio>;
+  setPeerVolume: (playerId: string, volume: number) => void;
+  togglePeerMute: (playerId: string) => void;
+  /** The `KeyboardEvent.code` bound to push-to-talk. */
+  pttKey: string;
+  setPttKey: (code: string) => void;
 }
 
 export function useVoiceChat(
@@ -77,6 +154,12 @@ export function useVoiceChat(
   const [micError, setMicError] = useState<string | null>(null);
   const [micReady, setMicReady] = useState(false);
   const [pttActive, _setPttActive] = useState(false);
+  const [peerAudio, setPeerAudio] = useState<Record<string, PeerAudio>>(loadPeerAudio);
+  const [pttKey, _setPttKey] = useState<string>(loadPttKey);
+  const pttKeyRef = useRef(pttKey);
+  pttKeyRef.current = pttKey;
+  const peerAudioRef = useRef(peerAudio);
+  peerAudioRef.current = peerAudio;
 
   // Refs that power the real-time logic without triggering re-renders.
   const voiceModeRef = useRef(voiceMode);
@@ -119,6 +202,22 @@ export function useVoiceChat(
     }
   }
 
+  /**
+   * Apply the stored per-peer volume/mute to every live audio element.
+   *
+   * Playback is a plain `<audio>` element per peer, so this is just a property
+   * write — no renegotiation, no track replacement. That is why per-player
+   * volume is a client-only feature: the audio never leaves the browser.
+   */
+  function applyPeerAudio() {
+    const settings = peerAudioRef.current;
+    for (const [peerId, audio] of audioElemsRef.current) {
+      const s = settings[peerId] ?? DEFAULT_PEER_AUDIO;
+      audio.volume = s.muted ? 0 : s.volume;
+      audio.muted = s.muted;
+    }
+  }
+
   function createPeer(peerId: string, isInitiator: boolean): RTCPeerConnection {
     const existing = peersRef.current.get(peerId);
     if (existing) return existing;
@@ -153,6 +252,11 @@ export function useVoiceChat(
       // silently killing playback.
       const audio = new Audio();
       audio.srcObject = stream;
+      // Apply any saved volume/mute before the first frame plays, so a muted
+      // peer never leaks a syllable.
+      const saved = peerAudioRef.current[peerId] ?? DEFAULT_PEER_AUDIO;
+      audio.volume = saved.muted ? 0 : saved.volume;
+      audio.muted = saved.muted;
       audioElemsRef.current.set(peerId, audio);
       audio.play().catch((err) => console.warn("[voice] autoplay blocked for peer", peerId, err));
     };
@@ -358,11 +462,13 @@ export function useVoiceChat(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
-  // PTT Space-key listener (only when push-to-talk mode is active).
+  // PTT key listener (only when push-to-talk mode is active). The bound key is
+  // configurable; it is read from a ref so rebinding does not need to tear down
+  // and re-add the listeners mid-press.
   useEffect(() => {
     if (!enabled || voiceMode !== "push-to-talk") return;
     const down = (e: KeyboardEvent) => {
-      if (e.code !== "Space" || e.repeat) return;
+      if (e.code !== pttKeyRef.current || e.repeat) return;
       const el = document.activeElement;
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) return;
       e.preventDefault();
@@ -371,7 +477,7 @@ export function useVoiceChat(
       applyMute();
     };
     const up = (e: KeyboardEvent) => {
-      if (e.code !== "Space") return;
+      if (e.code !== pttKeyRef.current) return;
       pttActiveRef.current = false;
       _setPttActive(false);
       applyMute();
@@ -412,6 +518,54 @@ export function useVoiceChat(
     [acquireMic],
   );
 
+  /**
+   * Commit a new per-peer map.
+   *
+   * The ref is updated synchronously (not inside the state updater) because
+   * `applyPeerAudio` reads it immediately afterwards — a functional updater
+   * runs during the next render, so the ref would still hold the old value and
+   * the audio element would not change until something else re-rendered.
+   */
+  const commitPeerAudio = useCallback((next: Record<string, PeerAudio>) => {
+    peerAudioRef.current = next;
+    savePeerAudio(next);
+    setPeerAudio(next);
+    applyPeerAudio();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Set one peer's playback volume (0..1). Unmutes if the level is raised. */
+  const setPeerVolume = useCallback(
+    (playerId: string, volume: number) => {
+      const clamped = Math.max(0, Math.min(1, volume));
+      const prev = peerAudioRef.current;
+      const current = prev[playerId] ?? DEFAULT_PEER_AUDIO;
+      commitPeerAudio({
+        ...prev,
+        [playerId]: { volume: clamped, muted: clamped === 0 ? current.muted : false },
+      });
+    },
+    [commitPeerAudio],
+  );
+
+  /** Toggle one peer's mute. The volume level is preserved. */
+  const togglePeerMute = useCallback(
+    (playerId: string) => {
+      const prev = peerAudioRef.current;
+      const current = prev[playerId] ?? DEFAULT_PEER_AUDIO;
+      commitPeerAudio({ ...prev, [playerId]: { ...current, muted: !current.muted } });
+    },
+    [commitPeerAudio],
+  );
+
+  /** Rebind push-to-talk. Stored as a `KeyboardEvent.code`. */
+  const setPttKey = useCallback((code: string) => {
+    if (!code || code.length > 32) return;
+    _setPttKey(code);
+    pttKeyRef.current = code;
+    try { localStorage.setItem(LS_PTT_KEY, code); } catch {}
+  }, []);
+
   return {
     voiceMode,
     setVoiceMode,
@@ -425,5 +579,10 @@ export function useVoiceChat(
     localAnalyserRef,
     getAudioCtx,
     acquireMic,
+    peerAudio,
+    setPeerVolume,
+    togglePeerMute,
+    pttKey,
+    setPttKey,
   };
 }

@@ -14,14 +14,12 @@ services:
     environment:
       PORT: ${PORT:-3000}
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:3000}
-      # Approximate monthly admission budget; not a Google Cloud billing cap.
-      # See the matching usage-budget section in the README.
-      MAPS_BUDGET_USD: ${MAPS_BUDGET_USD:-0}
+      # Finished-game history for the stats page and the leaderboard. Defaults
+      # to /data/history.json.
+      HISTORY_STATE_PATH: ${HISTORY_STATE_PATH:-/data/history.json}
     volumes:
-      # The Maps usage counter. This named volume is the whole reason the local
-      # admission allowance survives a redeploy — without it the counter starts at zero
-      # and the allowance no longer reflects earlier games. The [budget] startup log
-      # reports Google Cloud API usage; GET /api/budget reports the local counter.
+      # The finished-game history. This named volume is the whole reason it
+      # survives a redeploy — without it every recorded game is lost.
       - world-seek-data:/data
     restart: unless-stopped
 

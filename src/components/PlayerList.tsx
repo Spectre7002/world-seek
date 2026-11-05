@@ -36,6 +36,7 @@ export default function PlayerList({
             </span>
             <strong>{p.name}</strong>
             {p.isGameMaster && <span className="badge">{t("host")}</span>}
+            {p.spectator && <span className="badge">{t("Spectator")}</span>}
             {!p.connected && <span className="badge off">{t("offline")}</span>}
           </div>
           <div className="row" style={{ gap: 8 }}>

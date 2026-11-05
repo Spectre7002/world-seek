@@ -1,4 +1,10 @@
-import type { CaseHintData, CaseMode, LatLng } from "../src/shared/types";
+import type {
+  CaseHintData,
+  CaseMode,
+  CaseTierKey,
+} from "../src/shared/types";
+import { CASE_PITY_MAX, CASE_TIER_KEYS } from "../src/shared/types";
+import { SPELLS } from "../src/shared/spells";
 
 export const RARITY_TIERS = {
   MIL_SPEC: { key: "MIL_SPEC", name: { ru: "Синее (Mil-Spec)", en: "Mil-Spec (Blue)" }, color: "#4b69ff", weights: { standard: 79.92, better_odds: 25.0 } },
@@ -6,7 +12,12 @@ export const RARITY_TIERS = {
   CLASSIFIED: { key: "CLASSIFIED", name: { ru: "Розовое (Classified)", en: "Classified (Pink)" }, color: "#d32ce6", weights: { standard: 3.20, better_odds: 20.0 } },
   COVERT: { key: "COVERT", name: { ru: "Красное (Covert)", en: "Covert (Red)" }, color: "#eb4b4b", weights: { standard: 0.64, better_odds: 10.0 } },
   SPECIAL: { key: "SPECIAL", name: { ru: "Золото (Special)", en: "Special / Gold" }, color: "#ffd700", weights: { standard: 0.26, better_odds: 5.0 } }
-};
+} as const;
+
+// Re-exported so callers that already import the engine do not need a second
+// import; the value itself lives in shared types because the projection needs
+// it too and must not depend on the server layer.
+export { CASE_PITY_MAX };
 
 function getHemisphere(lat: number, lng: number) {
   const ns = lat >= 0 ? { ru: "Северное", en: "Northern" } : { ru: "Южное", en: "Southern" };
@@ -27,9 +38,18 @@ function getContinent(lat: number, lng: number) {
   return { ru: "Океания / Другой регион", en: "Oceania / Other" };
 }
 
-const CLASSIC_CASE_ITEMS = [
+interface CaseItem {
+  /** Stable id, used for duplicate protection. Never shown to the player. */
+  key: string;
+  tier: (typeof RARITY_TIERS)[CaseTierKey];
+  itemName: { ru: string; en: string };
+  generate: (lat: number, lng: number) => Partial<CaseHintData>;
+}
+
+const CLASSIC_CASE_ITEMS: CaseItem[] = [
   // --- СИНИЕ (MIL-SPEC) ---
   {
+    key: "continent",
     tier: RARITY_TIERS.MIL_SPEC,
     itemName: { ru: "Континент", en: "Continent" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -38,6 +58,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "hemisphere",
     tier: RARITY_TIERS.MIL_SPEC,
     itemName: { ru: "Полушарие", en: "Hemisphere" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -46,6 +67,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "circle-2500",
     tier: RARITY_TIERS.MIL_SPEC,
     itemName: { ru: "Круг 2500 км", en: "2500km Circle" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -64,6 +86,7 @@ const CLASSIC_CASE_ITEMS = [
 
   // --- ФИОЛЕТОВЫЕ (RESTRICTED) ---
   {
+    key: "band-lat-10",
     tier: RARITY_TIERS.RESTRICTED,
     itemName: { ru: "Зона Широты (10°)", en: "Latitude Zone (10°)" },
     generate: (lat: number): Partial<CaseHintData> => {
@@ -77,6 +100,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "band-lng-15",
     tier: RARITY_TIERS.RESTRICTED,
     itemName: { ru: "Зона Долготы (15°)", en: "Longitude Zone (15°)" },
     generate: (_: number, lng: number): Partial<CaseHintData> => {
@@ -90,6 +114,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "circle-1500",
     tier: RARITY_TIERS.RESTRICTED,
     itemName: { ru: "Круг 1500 км", en: "1500km Circle" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -105,9 +130,32 @@ const CLASSIC_CASE_ITEMS = [
       };
     }
   },
+  {
+    key: "spell-omen",
+    tier: RARITY_TIERS.RESTRICTED,
+    itemName: SPELLS.omen.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "OMEN", en: "OMEN" },
+      spell: "omen",
+      spellTarget: { lat, lng }
+    })
+  },
+  {
+    key: "spell-compass",
+    tier: RARITY_TIERS.RESTRICTED,
+    itemName: SPELLS.compass.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "COMPASS", en: "COMPASS" },
+      spell: "compass",
+      spellTarget: { lat, lng }
+    })
+  },
 
   // --- РОЗОВЫЕ (CLASSIFIED) ---
   {
+    key: "circle-750",
     tier: RARITY_TIERS.CLASSIFIED,
     itemName: { ru: "Круг 750 км", en: "750km Circle" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -124,6 +172,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "exact-lat",
     tier: RARITY_TIERS.CLASSIFIED,
     itemName: { ru: "Точная Широта", en: "Exact Latitude" },
     generate: (lat: number): Partial<CaseHintData> => {
@@ -135,6 +184,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "exact-lng",
     tier: RARITY_TIERS.CLASSIFIED,
     itemName: { ru: "Точная Долгота", en: "Exact Longitude" },
     generate: (_: number, lng: number): Partial<CaseHintData> => {
@@ -145,9 +195,54 @@ const CLASSIC_CASE_ITEMS = [
       };
     }
   },
+  {
+    key: "spell-arrow",
+    tier: RARITY_TIERS.CLASSIFIED,
+    itemName: SPELLS.arrow.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "ARROW", en: "ARROW" },
+      spell: "arrow",
+      spellTarget: { lat, lng }
+    })
+  },
+  {
+    key: "spell-scry",
+    tier: RARITY_TIERS.CLASSIFIED,
+    itemName: SPELLS.scry.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "SCRY", en: "SCRY" },
+      spell: "scry",
+      spellTarget: { lat, lng }
+    })
+  },
+  {
+    key: "spell-echo",
+    tier: RARITY_TIERS.CLASSIFIED,
+    itemName: SPELLS.echo.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "ECHO", en: "ECHO" },
+      spell: "echo",
+      spellTarget: { lat, lng }
+    })
+  },
+  {
+    key: "spell-heatmap",
+    tier: RARITY_TIERS.CLASSIFIED,
+    itemName: SPELLS.heatmap.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "HEATMAP", en: "HEATMAP" },
+      spell: "heatmap",
+      spellTarget: { lat, lng }
+    })
+  },
 
 // --- КРАСНЫЕ (COVERT) ---
   {
+    key: "circle-250",
     tier: RARITY_TIERS.COVERT,
     itemName: { ru: "Круг 250 км", en: "250km Circle" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -164,6 +259,7 @@ const CLASSIC_CASE_ITEMS = [
     }
   },
   {
+    key: "equator-mirror",
     tier: RARITY_TIERS.COVERT,
     itemName: { ru: "Зеркало экватора", en: "Equator Mirror" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -176,9 +272,21 @@ const CLASSIC_CASE_ITEMS = [
       };
     }
   },
+  {
+    key: "spell-freeze",
+    tier: RARITY_TIERS.COVERT,
+    itemName: SPELLS.freeze.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "FREEZE", en: "FREEZE" },
+      spell: "freeze",
+      spellTarget: { lat, lng }
+    })
+  },
 
   // --- ЗОЛОТО (SPECIAL) ---
   {
+    key: "exact-5k",
     tier: RARITY_TIERS.SPECIAL,
     itemName: { ru: "Точные координаты (5K)", en: "Exact Coordinates (5K)" },
     generate: (lat: number, lng: number): Partial<CaseHintData> => {
@@ -188,24 +296,101 @@ const CLASSIC_CASE_ITEMS = [
         exact: { lat, lng }
       };
     }
+  },
+  {
+    key: "spell-reroll",
+    tier: RARITY_TIERS.SPECIAL,
+    itemName: SPELLS.reroll.name,
+    generate: (lat: number, lng: number): Partial<CaseHintData> => ({
+      hintTitle: { ru: "Заклинание", en: "Spell" },
+      hintValue: { ru: "REROLL", en: "REROLL" },
+      spell: "reroll",
+      spellTarget: { lat, lng }
+    })
   }
 ];
 
-export function spinClassicCase(mode: CaseMode = "better_odds", targetLat: number, targetLng: number): CaseHintData {
-  const totalWeight = CLASSIC_CASE_ITEMS.reduce((sum, item) => sum + item.tier.weights[mode], 0);
-  let random = Math.random() * totalWeight;
-  let wonItem = CLASSIC_CASE_ITEMS[0];
+export interface SpinOptions {
+  /** Tiers the host allows. Empty / undefined means every tier. */
+  enabledTiers?: CaseTierKey[];
+  /** Consecutive MIL_SPEC rolls so far. At CASE_PITY_MAX the roll is boosted. */
+  pity?: number;
+  /** Key of the previous item, so the same item is not handed out twice in a row. */
+  lastItem?: string | null;
+}
 
-  for (const item of CLASSIC_CASE_ITEMS) {
-    if (random < item.tier.weights[mode]) {
-      wonItem = item;
+/** Normalise a client-supplied tier list to known keys, preserving order. */
+export function sanitizeCaseTiers(v: unknown): CaseTierKey[] {
+  if (!Array.isArray(v)) return [...CASE_TIER_KEYS];
+  const seen = new Set<CaseTierKey>();
+  for (const raw of v) {
+    if (typeof raw === "string" && (CASE_TIER_KEYS as string[]).includes(raw)) {
+      seen.add(raw as CaseTierKey);
+    }
+  }
+  // An empty selection would make the case unrollable, so fall back to all.
+  return seen.size > 0 ? CASE_TIER_KEYS.filter((k) => seen.has(k)) : [...CASE_TIER_KEYS];
+}
+
+export function spinClassicCase(
+  mode: CaseMode = "better_odds",
+  targetLat: number,
+  targetLng: number,
+  options: SpinOptions = {},
+): CaseHintData {
+  // Roll the TIER first, then pick uniformly inside it.
+  //
+  // The previous version compared the roll against each *item's* tier weight,
+  // but a tier's weight is shared by every item in it. That made the effective
+  // probability `items_in_tier * tier_weight / total`, so tiers with more items
+  // were over-represented and the rare tiers were far rarer than the table
+  // claims (COVERT ~0.40% instead of 0.64%, SPECIAL ~0.08% instead of 0.26%).
+  const enabled = options.enabledTiers && options.enabledTiers.length > 0
+    ? options.enabledTiers
+    : CASE_TIER_KEYS;
+  const enabledSet = new Set(enabled);
+
+  // Only tiers that are both enabled and actually have items can be rolled.
+  const tiers = CASE_TIER_KEYS
+    .filter((key) => enabledSet.has(key))
+    .map((key) => RARITY_TIERS[key])
+    .filter((tier) => CLASSIC_CASE_ITEMS.some((item) => item.tier.key === tier.key));
+
+  // Pity timer: a long blue streak forces a better tier. The boost only applies
+  // when a better tier is actually enabled, otherwise the case would be
+  // unrollable in a "blues only" lobby.
+  const pity = Math.max(0, Math.floor(options.pity ?? 0));
+  const boosted = pity >= CASE_PITY_MAX
+    ? tiers.filter((tier) => tier.key !== "MIL_SPEC")
+    : [];
+  const rollPool = boosted.length > 0 ? boosted : tiers;
+
+  const totalWeight = rollPool.reduce((sum, tier) => sum + tier.weights[mode], 0);
+  let random = Math.random() * totalWeight;
+  let wonTier = rollPool[0];
+
+  for (const tier of rollPool) {
+    if (random < tier.weights[mode]) {
+      wonTier = tier;
       break;
     }
-    random -= item.tier.weights[mode];
+    random -= tier.weights[mode];
+  }
+
+  const pool = CLASSIC_CASE_ITEMS.filter((item) => item.tier.key === wonTier.key);
+  let wonItem = pool[Math.floor(Math.random() * pool.length)] ?? CLASSIC_CASE_ITEMS[0];
+
+  // Duplicate protection: never hand out the same item twice in a row when the
+  // tier has an alternative. A repeat feels like a wasted case even when the
+  // tier is good.
+  if (options.lastItem && wonItem.key === options.lastItem && pool.length > 1) {
+    const alternatives = pool.filter((item) => item.key !== options.lastItem);
+    wonItem = alternatives[Math.floor(Math.random() * alternatives.length)] ?? wonItem;
   }
 
   const generated = wonItem.generate(targetLat, targetLng);
   return {
+    itemKey: wonItem.key,
     tierKey: wonItem.tier.key,
     tierName: wonItem.tier.name,
     tierColor: wonItem.tier.color,

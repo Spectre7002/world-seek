@@ -8,6 +8,7 @@ import type {
   JoinAck,
   JoinError,
   LatLng,
+  LiveUpdate,
   LiveView,
   LiveCase,
   PeekAck,
@@ -16,6 +17,7 @@ import type {
 } from "@/shared/types";
 import { emitAck, emitAction, getSocket } from "./socket";
 import { clearSession, loadSession, saveSession } from "./session";
+import { getPlayerKey } from "./playerKey";
 
 export type GameStatus = "connecting" | "need-join" | "in-game";
 
@@ -40,7 +42,6 @@ export function useGame(code: string) {
   const [status, setStatus] = useState<GameStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState<boolean>(false);
-  const [budgetBlocked, setBudgetBlocked] = useState<boolean>(false);
   const inGame = useRef<boolean>(false);
 
   const seated = useRef<boolean>(false);
@@ -92,6 +93,14 @@ export function useGame(code: string) {
         setStatus("in-game");
       }
 
+      // Delta from `guess:preview`: only the live pin list, not a full state.
+      function onLiveUpdate(update: LiveUpdate) {
+        setState(function (current) {
+          if (!current || current.phase !== "finding") return current;
+          return { ...current, livePins: update.pins };
+        });
+      }
+
       function onLiveView(view: LiveView) {
         setState(function (current) {
           if (!current || current.phase !== "finding") return current;
@@ -125,12 +134,21 @@ export function useGame(code: string) {
         router.push("/");
       }
 
+      // Removed by a vote-kick. Same landing as a closed room, but the player
+      // is told why instead of silently reappearing on the home page.
+      function onKicked() {
+        clearSession(code);
+        router.push("/?kicked=1");
+      }
+
       socket.on("state", onState);
+      socket.on("live:update", onLiveUpdate);
       socket.on("view:live", onLiveView);
       socket.on("case:live", onLiveCase);
       socket.on("connect", onConnect);
       socket.on("disconnect", onDisconnect);
       socket.on("game:closed", onClosed);
+      socket.on("game:kicked", onKicked);
 
       if (socket.connected) {
         setConnected(true);
@@ -139,11 +157,13 @@ export function useGame(code: string) {
 
       return function () {
         socket.off("state", onState);
+        socket.off("live:update", onLiveUpdate);
         socket.off("view:live", onLiveView);
-          socket.off("case:live", onLiveCase);
+        socket.off("case:live", onLiveCase);
         socket.off("connect", onConnect);
         socket.off("disconnect", onDisconnect);
         socket.off("game:closed", onClosed);
+        socket.off("game:kicked", onKicked);
       };
     },
     [code, flushPending, router],
@@ -160,9 +180,7 @@ export function useGame(code: string) {
             reseatRef.current().then(function (ok) {
               if (ok) emitAction<ActionAck>(event, payload);
             });
-            return;
           }
-          if (res.reason === "budget") setBudgetBlocked(true);
         });
       }
 
@@ -186,6 +204,7 @@ export function useGame(code: string) {
         code: code,
         name: name,
         emoji: emoji,
+        playerKey: getPlayerKey(),
       }).then(function (res) {
         if (res.ok) {
           saveSession(code, {
@@ -229,6 +248,17 @@ export function useGame(code: string) {
     [dispatch],
   );
 
+  /**
+   * Hiding timer ran out with no valid spot selected. The server drops the
+   * player on a random covered location so the room can advance.
+   */
+  const autoHide = useCallback(
+    function () {
+      dispatch("hide:auto");
+    },
+    [dispatch],
+  );
+
   const validateHide = useCallback(function (
     spot: HidingSpot,
   ): Promise<{ ok: boolean; spot?: HidingSpot; reason?: string }> {
@@ -254,6 +284,24 @@ export function useGame(code: string) {
     if (socket.connected && seated.current) socket.emit("view:sync", view);
   }, []);
 
+  /**
+   * Spend one spell from the server-owned inventory. Resolves with the ack so
+   * REROLL can hand back the replacement case hint.
+   */
+  const consumeSpell = useCallback(function (
+    spell: string,
+  ): Promise<{ ok: boolean; hint?: any }> {
+    const socket = getSocket();
+    if (!socket.connected || !seated.current) return Promise.resolve({ ok: false });
+    return emitAck<{ ok: boolean; hint?: any }>("spell:consume", { spell });
+  }, []);
+
+  /** Cheat-menu helper: grant one of each spell (server checks the cheat flag). */
+  const grantSpells = useCallback(function () {
+    const socket = getSocket();
+    if (socket.connected && seated.current) socket.emit("spell:grant");
+  }, []);
+
   const shareCaseHint = useCallback(function (hint: unknown) {
     const socket = getSocket();
     if (socket.connected && seated.current) socket.emit("case:share", hint);
@@ -266,9 +314,36 @@ export function useGame(code: string) {
     [dispatch],
   );
 
+  /**
+   * Host escape hatch: skip the current phase immediately. The server owns the
+   * phase clock, so this is the manual override for an AFK player.
+   */
+  const forceAdvance = useCallback(
+    function () {
+      dispatch("round:forceAdvance");
+    },
+    [dispatch],
+  );
+
   const returnToLobby = useCallback(
     function () {
       dispatch("game:returnToLobby");
+    },
+    [dispatch],
+  );
+
+  /** Host only: restart with the same players and settings. */
+  const rematch = useCallback(
+    function () {
+      dispatch("game:rematch");
+    },
+    [dispatch],
+  );
+
+  /** Vote to kick a player. The server decides when the tally is enough. */
+  const voteKick = useCallback(
+    function (targetId: string) {
+      dispatch("game:voteKick", { targetId: targetId });
     },
     [dispatch],
   );
@@ -307,18 +382,23 @@ export function useGame(code: string) {
     status: status,
     error: error,
     connected: connected,
-    budgetBlocked: budgetBlocked,
     join: join,
     peek: peek,
     start: start,
     hide: hide,
+    autoHide: autoHide,
     validateHide: validateHide,
     guess: guess,
     previewGuess: previewGuess,
     syncView: syncView,
+    consumeSpell: consumeSpell,
+    grantSpells: grantSpells,
     shareCaseHint: shareCaseHint,
     nextRound: nextRound,
+    forceAdvance: forceAdvance,
     returnToLobby: returnToLobby,
+    rematch: rematch,
+    voteKick: voteKick,
     leave: leave,
     close: close,
     updateSettings: updateSettings,

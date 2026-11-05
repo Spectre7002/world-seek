@@ -8,7 +8,10 @@ import StreetView, { type StreetViewCam } from "./StreetView";
 import Timer from "./Timer";
 import FloatingMap from "./FloatingMap";
 import WaitingBar from "./WaitingBar";
+import SpellBar from "./SpellBar";
 import { useLanguage } from "@/lib/language";
+import { useDialog } from "@/lib/useDialog";
+import { totalSpells, type SpellId } from "@/shared/spells";
 
 interface Props {
   state: PublicState;
@@ -18,6 +21,13 @@ interface Props {
   onOpenCase: () => Promise<{ ok: boolean; hint?: any }>;
   onCaseOpened?: (hint: any) => void;
   onShareCaseHint?: (hint: any) => void;
+  /**
+   * Spend one spell from the server-owned inventory. Resolves with the new
+   * case hint when the spell was a REROLL, so the opener can show it.
+   */
+  onSpellConsumed: (spell: SpellId) => Promise<{ ok: boolean; hint?: any }>;
+  /** Cheat-menu helper: grant one of each spell. */
+  onSpellsGranted: () => void;
 }
 
 const PREVIEW_THROTTLE_MS = 100;
@@ -34,6 +44,14 @@ const ROULETTE_POOL = [
   { name: { ru: "Точная Широта", en: "Exact Latitude" }, color: "#d32ce6" },
   { name: { ru: "Точная Долгота", en: "Exact Longitude" }, color: "#d32ce6" },
   { name: { ru: "Круг 250 км", en: "250km Circle" }, color: "#eb4b4b" },
+  { name: { ru: "OMEN", en: "OMEN" }, color: "#8847ff" },
+  { name: { ru: "COMPASS", en: "COMPASS" }, color: "#8847ff" },
+  { name: { ru: "ARROW", en: "ARROW" }, color: "#d32ce6" },
+  { name: { ru: "SCRY", en: "SCRY" }, color: "#d32ce6" },
+  { name: { ru: "ECHO", en: "ECHO" }, color: "#d32ce6" },
+  { name: { ru: "HEATMAP", en: "HEATMAP" }, color: "#d32ce6" },
+  { name: { ru: "FREEZE", en: "FREEZE" }, color: "#eb4b4b" },
+  { name: { ru: "REROLL", en: "REROLL" }, color: "#ffd700" },
 ];
 
 function PlayerBar({ player, state, side }: { player: PublicPlayer; state: PublicState; side: "left" | "right" }) {
@@ -86,8 +104,12 @@ function PlayerBar({ player, state, side }: { player: PublicPlayer; state: Publi
 }
 
 function HpBattleHud({ state }: { state: PublicState }) {
-  const me = state.players.find((player) => player.id === state.youId);
-  const opponent = state.players.find((player) => player.id !== state.youId);
+  // Spectators have no seat and sit at a full 10,000 HP, so they must never be
+  // picked as the duel opponent — otherwise a 2-player match with one watcher
+  // shows the watcher's health instead of the real rival's.
+  const seated = state.players.filter((player) => !player.spectator);
+  const me = seated.find((player) => player.id === state.youId);
+  const opponent = seated.find((player) => player.id !== state.youId);
 
   if (!me || !opponent) return null;
 
@@ -97,6 +119,125 @@ function HpBattleHud({ state }: { state: PublicState }) {
       <PlayerBar player={opponent} state={state} side="right" />
     </div>
   );
+}
+
+/**
+ * Compact HP board for HP matches with 3+ players. The duel HUD above only
+ * knows how to show one opponent, so it is used for exactly two players; every
+ * larger match gets this ranked list instead. Damage is shown as a floating
+ * delta so a hit is visible even when the bar barely moves.
+ */
+function HpRoster({
+  state,
+  variant = "guess",
+}: {
+  state: PublicState;
+  variant?: "guess" | "watch";
+}) {
+  const { t } = useLanguage();
+  const prevHp = useRef<Map<string, number>>(new Map());
+  const [deltas, setDeltas] = useState<Record<string, number>>({});
+
+  // Spectators never played, so they have no health to show.
+  const ranked = useMemo(
+    () =>
+      state.players
+        .filter((p) => !p.spectator)
+        .sort(
+          (a, b) => b.hp - a.hp || (b.guessMultiplier ?? 1) - (a.guessMultiplier ?? 1),
+        ),
+    [state.players],
+  );
+
+  useEffect(() => {
+    const next: Record<string, number> = {};
+    let changed = false;
+    for (const p of state.players) {
+      const before = prevHp.current.get(p.id);
+      if (before !== undefined && before > p.hp) {
+        next[p.id] = before - p.hp;
+        changed = true;
+      }
+      prevHp.current.set(p.id, p.hp);
+    }
+    if (!changed) return;
+    setDeltas(next);
+    const timer = setTimeout(() => setDeltas({}), 1200);
+    return () => clearTimeout(timer);
+  }, [state.players]);
+
+  return (
+    <div
+      className={`hp-roster${variant === "watch" ? " hp-roster--watch" : ""}`}
+      aria-label={t("Health")}
+    >
+      {ranked.map((p) => {
+        const percent = Math.max(0, Math.min(100, (p.hp / 10000) * 100));
+        const mult = p.guessMultiplier ?? 1;
+        const multText = mult % 1 === 0 ? mult.toString() : mult.toFixed(1);
+        const isMe = p.id === state.youId;
+        const delta = deltas[p.id];
+        return (
+          <div
+            key={p.id}
+            className={`hp-roster-row${isMe ? " is-me" : ""}${
+              p.hp <= 0 ? " is-out" : ""
+            }${p.connected ? "" : " is-off"}`}
+          >
+            <span className="hp-roster-avatar">
+              <img className="emoji-img" src={emojiUrl(p.emoji)} alt="" />
+            </span>
+            <div className="hp-roster-body">
+              <div className="hp-roster-top">
+                <span className="hp-roster-name">
+                  {p.name}
+                  {isMe && <span className="badge">{t("you")}</span>}
+                </span>
+                <span className="hp-roster-mult">x{multText}</span>
+              </div>
+              <div className="hp-roster-track">
+                <div
+                  className="hp-roster-fill"
+                  style={{
+                    width: `${percent}%`,
+                    background: percent > 25 ? undefined : "#ef4444",
+                  }}
+                />
+                <span className="hp-roster-val">{p.hp.toLocaleString()}</span>
+              </div>
+            </div>
+            {delta ? (
+              <span className="hp-roster-delta">-{delta.toLocaleString()}</span>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Picks the HP layout for the current match: the side-by-side duel HUD for two
+ * players, the ranked roster for three or more. Renders nothing outside HP mode
+ * or when fewer than two players are connected.
+ *
+ * `variant` only affects the roster: the watch view already uses the bottom-left
+ * corner for its hunter roster, so the HP board moves to the top-right there.
+ */
+function HpHealthHud({
+  state,
+  variant = "guess",
+}: {
+  state: PublicState;
+  variant?: "guess" | "watch";
+}) {
+  if (state.settings.gameMode !== "hp") return null;
+  // Spectators have no seat and no health of their own, so they must not show
+  // up in the HP board (they would appear at a full 10,000 HP).
+  const connected = state.players.filter((p) => p.connected && !p.spectator);
+  if (connected.length < 2) return null;
+  if (connected.length === 2) return <HpBattleHud state={state} />;
+  return <HpRoster state={state} variant={variant} />;
 }
 
 // Продвинутый режим наблюдения за другими (Демка)
@@ -296,11 +437,15 @@ export default function FindingPhase(props: Props) {
   const [rouletteWinnerIndex, setRouletteWinnerIndex] = useState(45);
   const [rouletteStopOffset, setRouletteStopOffset] = useState(0);
   const [winModalHint, setWinModalHint] = useState<any>(null);
+  const [activeSpell, setActiveSpell] = useState<SpellId | null>(null);
+  const [lootedSpellTarget, setLootedSpellTarget] = useState<LatLng | null>(null);
 
   const [showCheatMenu, setShowCheatMenu] = useState(false);
-  const [cheatLang, setCheatLang] = useState<"ru" | "en">("ru");
   const [cheatType, setCheatType] = useState<"circle" | "lat" | "lng" | "antipode" | "5k" | "outline_continent" | "outline_country">("circle");
   const [cheatValue, setCheatValue] = useState(500);
+  // Escape-to-close + focus trap for the two case/cheat dialogs.
+  const winModalRef = useDialog<HTMLDivElement>(() => setWinModalHint(null), Boolean(winModalHint));
+  const cheatMenuRef = useDialog<HTMLDivElement>(() => setShowCheatMenu(false), showCheatMenu);
 
   const lastSent = useRef(0);
   const trailing = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -309,13 +454,19 @@ export default function FindingPhase(props: Props) {
 
   useEffect(() => () => { if (trailing.current) clearTimeout(trailing.current); }, []);
 
+  // Keyed on roundKey, not currentRound: in classic multiplayer currentRound is
+  // the cycle index and does not change between targets, so keying on it left
+  // the previous target's case hint on screen and kept the case button hidden
+  // for the rest of the cycle.
   useEffect(() => {
     setGuess(null);
     setCaseHint(null);
     setWinModalHint(null);
+    setActiveSpell(null);
+    setLootedSpellTarget(null);
     props.onCaseOpened?.(null);
     if (trailing.current) clearTimeout(trailing.current);
-  }, [state.currentRound]);
+  }, [state.roundKey]);
 
   const sendPreview = useCallback((at: LatLng) => {
     const wait = PREVIEW_THROTTLE_MS - (Date.now() - lastSent.current);
@@ -342,6 +493,10 @@ export default function FindingPhase(props: Props) {
     }
 
     if (res && res.ok && res.hint) {
+      // The server already added the spell to the inventory; the next state
+      // broadcast carries the new count, so nothing to do here.
+      if (res.hint.spellTarget) setLootedSpellTarget(res.hint.spellTarget);
+
       const fakes: any[] = Array.from({ length: 60 }).map(() => {
         const item = ROULETTE_POOL[Math.floor(Math.random() * ROULETTE_POOL.length)];
         return { name: item.name, color: item.color };
@@ -370,7 +525,48 @@ export default function FindingPhase(props: Props) {
     }
   }
 
-  const tCheat = (ru: string, en: string) => cheatLang === "ru" ? ru : en;
+  // The server sends the answer only to players who own a spell, so this works
+  // in a normal game (not just with cheats on) and survives a refresh.
+  const spellTarget = state.spellTarget ?? state.currentTarget?.realCoords ?? lootedSpellTarget;
+  const spellCount = totalSpells(state.yourSpells);
+
+  function handleSpellUsed(id: SpellId) {
+    props.onSpellConsumed(id);
+    setActiveSpell(null);
+  }
+
+  // Server spells (freeze / reroll) are applied by the server. FREEZE only
+  // needs the charge spent; REROLL returns the replacement hint, which has to
+  // replace the local case hint or the player would keep seeing the old one.
+  async function handleServerSpell(id: SpellId) {
+    const res: { ok: boolean; hint?: any } = await props
+      .onSpellConsumed(id)
+      .catch(() => ({ ok: false }));
+    if (!res || !res.ok) return;
+    if (id === "reroll" && res.hint) {
+      setCaseHint(res.hint);
+      setWinModalHint(res.hint);
+      props.onCaseOpened?.(res.hint);
+      if (res.hint.spellTarget) setLootedSpellTarget(res.hint.spellTarget);
+    }
+  }
+
+  // FREEZE countdown. The server owns the deadline; this only renders it.
+  const [frozenLeft, setFrozenLeft] = useState(0);
+  useEffect(() => {
+    const until = state.youFrozenUntil;
+    if (!until) {
+      setFrozenLeft(0);
+      return;
+    }
+    const tick = () => setFrozenLeft(Math.max(0, Math.ceil((until - Date.now()) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 500);
+    return () => window.clearInterval(timer);
+  }, [state.youFrozenUntil]);
+  const frozen = frozenLeft > 0;
+
+  const tCheat = (ru: string, en: string) => language === "ru" ? ru : en;
 
   function applyCheat() {
     const coords = state.currentTarget?.realCoords;
@@ -465,11 +661,34 @@ export default function FindingPhase(props: Props) {
     });
   }
 
+  // A spectator has no seat: they watch the round without a guess map. The
+  // server never sends them a target or a spell answer, so this is purely a
+  // read-only view of the same live pins the target sees.
+  if (state.youAreSpectator) {
+    return (
+      <>
+        <HpHealthHud state={state} variant="watch" />
+        <WatchView
+          roundLabel={roundLabel}
+          title={t("Spectating")}
+          emptyHint={t("Waiting for the round to end...")}
+          markers={liveMarkers}
+          views={state.liveViews}
+          current={state.guessedCount}
+          total={state.expectedGuessers}
+          players={state.players}
+          excludePlayerId={state.currentTarget?.id}
+          state={state}
+        />
+      </>
+    );
+  }
+
   if (state.youAreTarget || state.youHaveGuessed) {
     return (
       <>
-        {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
-        <WatchView 
+        <HpHealthHud state={state} variant="watch" />
+        <WatchView
           roundLabel={roundLabel} 
           title={state.youAreTarget ? t("Everyone's hunting for you 🔎") : t("Guess locked in ✅")} 
           emptyHint={t("Waiting for the others.")} 
@@ -485,20 +704,12 @@ export default function FindingPhase(props: Props) {
     );
   }
 
-  const baseFindingTime = state.settings.findingTimeLimit || 0;
-  let urgentSecondsLeft: number | null = null;
-  
-  if (
-    state.settings.gameMode === "hp" &&
-    state.firstGuessTime !== null &&
-    state.firstGuessTime !== undefined &&
-    !state.youHaveGuessed
-  ) {
-    const elapsed = Math.floor((Date.now() - state.firstGuessTime) / 1000);
-    urgentSecondsLeft = Math.max(0, 15 - elapsed);
-  }
-  
-  const findingTime = urgentSecondsLeft !== null ? urgentSecondsLeft : baseFindingTime;
+  // The HP "first guess in -> 15s for everyone else" rule is enforced on the
+  // server, which shortens `deadlineAt` when the first guess lands. The timer
+  // therefore just renders that deadline; recomputing a local 15s cap here
+  // would be ignored anyway (Timer prefers `deadlineAt`) and could disagree
+  // with the clock that actually ends the round.
+  const findingTime = state.settings.findingTimeLimit || 0;
 
   return (
     <div className="full-bleed">
@@ -522,6 +733,19 @@ export default function FindingPhase(props: Props) {
           >
             {rouletteActive ? t("Opening...") : `🎁 ${t("Classic Case")}`}
           </button>
+        )}
+
+        {/* Pity timer: a visible countdown to a guaranteed better tier. */}
+        {state.settings.caseEnabled && state.casePity > 0 && (
+          <div className="case-pity" title={t("Guaranteed better tier soon")}>
+            🎯 {t("Pity")} {state.casePity}/{state.casePityMax}
+          </div>
+        )}
+
+        {frozen && (
+          <div className="freeze-banner" role="status">
+            ❄️ {t("Frozen")} — {frozenLeft}s
+          </div>
         )}
       </div>
 
@@ -562,7 +786,7 @@ export default function FindingPhase(props: Props) {
 
       {winModalHint && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.75)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--bg-elev-1)", padding: "28px", borderRadius: "16px", border: `3px solid ${winModalHint.tierColor}`, minWidth: "320px", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.8)", display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div ref={winModalRef} role="dialog" aria-modal="true" aria-label={winModalHint.tierName[lang] || winModalHint.tierName.ru || winModalHint.tierName} style={{ background: "var(--bg-elev-1)", padding: "28px", borderRadius: "16px", border: `3px solid ${winModalHint.tierColor}`, minWidth: "320px", textAlign: "center", boxShadow: "0 8px 32px rgba(0,0,0,0.8)", display: "flex", flexDirection: "column", gap: "16px" }}>
             <h2 style={{ margin: 0, color: winModalHint.tierColor, fontSize: "1.5rem" }}>
               🎉 {winModalHint.tierName[lang] || winModalHint.tierName.ru || winModalHint.tierName}
             </h2>
@@ -572,6 +796,11 @@ export default function FindingPhase(props: Props) {
             <div style={{ color: "var(--muted)", fontSize: "0.95rem" }}>
               {winModalHint.hintValue[lang] || winModalHint.hintValue.ru || winModalHint.hintValue}
             </div>
+            {winModalHint.spell && (
+              <div style={{ color: "#c084fc", fontSize: "0.9rem", fontWeight: 600 }}>
+                ✨ {t("Added to your spell bar")}
+              </div>
+            )}
             <button
               type="button"
               className="btn-primary"
@@ -585,13 +814,20 @@ export default function FindingPhase(props: Props) {
       )}
 
       {showCheatMenu && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "var(--bg-elev-1)", padding: "28px", minWidth: "360px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 8px 32px rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div
+          onClick={() => setShowCheatMenu(false)}
+          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.7)", zIndex: 99999, display: "flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <div
+            ref={cheatMenuRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={tCheat("Чит-Меню", "Cheat Menu")}
+            onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--bg-elev-1)", padding: "28px", minWidth: "360px", borderRadius: "12px", border: "1px solid var(--border-color)", boxShadow: "0 8px 32px rgba(0,0,0,0.9)", display: "flex", flexDirection: "column", gap: "20px" }}
+          >
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--border-color)", paddingBottom: "12px" }}>
               <h3 style={{ margin: 0, fontSize: "1.2rem" }}>🔮 {tCheat("Чит-Меню", "Cheat Menu")}</h3>
-              <button type="button" onClick={() => setCheatLang(cheatLang === "ru" ? "en" : "ru")} className="secondary" style={{ padding: "4px 8px", fontSize: "0.85rem" }}>
-                {cheatLang === "ru" ? "EN" : "RU"}
-              </button>
             </div>
 
             <div className="setting-row" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -619,6 +855,9 @@ export default function FindingPhase(props: Props) {
             </p>
 
             <div className="row" style={{ justifyContent: "flex-end", marginTop: "12px", gap: "12px" }}>
+              <button type="button" onClick={props.onSpellsGranted} className="secondary" style={{ padding: "8px 16px" }}>
+                🎲 {tCheat("Получить заклинания", "Get Spells")}
+              </button>
               <button type="button" onClick={() => setShowCheatMenu(false)} className="secondary" style={{ padding: "8px 16px" }}>{tCheat("Отмена", "Cancel")}</button>
               <button type="button" onClick={applyCheat} className="btn-primary" style={{ backgroundColor: "#ff3333", color: "white", padding: "8px 16px" }}>{tCheat("Применить", "Apply")}</button>
             </div>
@@ -627,22 +866,40 @@ export default function FindingPhase(props: Props) {
       )}
 
       <div className="round-play">
-        {state.settings.gameMode === "hp" && state.players.length === 2 && <HpBattleHud state={state} />}
+        <HpHealthHud state={state} />
         
         <div className="round-streetview">
           <div className="overlay-top overlay-top--emoji">
-            {!state.solo && state.currentTarget && <span className="emoji-inline"><img className="emoji-img" src={emojiUrl(state.currentTarget.emoji)} alt="" /></span>}
-            <span>{state.solo || state.settings.gameMode === "hp" ? <>{t("Where in the world is this?")} 🌍 ({roundLabel})</> : <>{t("Where is")} <strong>{state.currentTarget?.name}</strong> {t("hiding?")}</>}</span>
+            {!state.serverPickedLocation && state.currentTarget && <span className="emoji-inline"><img className="emoji-img" src={emojiUrl(state.currentTarget.emoji)} alt="" /></span>}
+            <span>{state.serverPickedLocation ? <>{t("Where in the world is this?")} 🌍 ({roundLabel})</> : <>{t("Where is")} <strong>{state.currentTarget?.name}</strong> {t("hiding?")}</>}</span>
+            {state.settings.movementMode === "NMPZ" && (
+              <span className="nmpz-badge" role="status">
+                🔒 NMPZ
+              </span>
+            )}
           </div>
-          <StreetView 
-            mode="pano" 
-            panoId={state.currentTarget?.panoId} 
-            onView={state.solo ? undefined : onView} 
+          <StreetView
+            mode="pano"
+            panoId={state.currentTarget?.panoId}
+            onView={state.serverPickedLocation ? undefined : onView}
+            // NMPZ: the server records the rule, the panorama enforces it.
+            movementMode={state.settings.movementMode}
           />
         </div>
 
         <div className="round-hud" style={{ flexWrap: "wrap" }}>
-          {findingTime > 0 && <Timer seconds={findingTime} onExpire={() => onGuess(guess || { lat: 0, lng: 0 })} />}
+          {(findingTime > 0 || state.deadlineAt != null) && (
+            <Timer
+              seconds={findingTime}
+              // The server owns the phase clock; this deadline is the same one
+              // it will expire, so the display cannot drift from the truth.
+              deadlineAt={state.deadlineAt}
+              // Only submit a real pin. The old fallback guessed {0,0} — a
+              // scored guess in the Gulf of Guinea — so an idle player was
+              // penalised for a place they never picked.
+              onExpire={() => { if (guess) onGuess(guess); }}
+            />
+          )}
 
           {caseHint && (
             <div style={{ padding: "6px 10px", border: `2px solid ${caseHint.tierColor}`, borderRadius: 4, background: "rgba(0,0,0,0.85)", fontSize: 13 }}>
@@ -653,23 +910,56 @@ export default function FindingPhase(props: Props) {
           )}
         </div>
 
-        <FloatingMap title={t("Move the map and place your guess")} className="guess-map-window">
-          <MapPicker 
-            value={guess} 
-            onChange={(p) => { setGuess(p); sendPreview(p); }} 
-            onDrag={sendPreview} 
-            markerIcon={state.youEmoji} 
-            resetViewKey={state.currentRound} 
-            caseHint={caseHint}
-            markers={liveMarkers}
-          />
+        <FloatingMap
+          title={t("Move the map and place your guess")}
+          className={`guess-map-window${spellCount > 0 ? " has-spells" : ""}`}
+        >
+          <div className="spell-map">
+            <SpellBar
+              counts={state.yourSpells}
+              active={activeSpell}
+              disabled={!spellTarget}
+              onSelect={setActiveSpell}
+              onCast={handleServerSpell}
+            />
+            <div className="spell-map-canvas">
+              <MapPicker
+                value={guess}
+                onChange={(p) => { setGuess(p); sendPreview(p); }}
+                onDrag={sendPreview}
+                markerIcon={state.youEmoji}
+                restriction={state.mapBounds}
+                resetViewKey={state.roundKey}
+                caseHint={caseHint}
+                markers={liveMarkers}
+                spell={activeSpell}
+                spellTarget={spellTarget}
+                scoreSettings={state.settings}
+                onSpellUsed={handleSpellUsed}
+              />
+            </div>
+          </div>
         </FloatingMap>
       </div>
 
       <div className="overlay-bar guess-confirm-bar">
-        {!guess && <span className="muted">{t("Click the map to place your guess.")}</span>}
-        {guess && <span className="muted">{t("Lock it in?")}</span>}
-        <button type="button" onClick={() => guess && onGuess(guess)} disabled={!guess}>{t("Guess here")}</button>
+        {frozen ? (
+          <span className="muted">
+            ❄️ {t("Frozen by a rival")} — {frozenLeft}s
+          </span>
+        ) : (
+          <>
+            {!guess && <span className="muted">{t("Click the map to place your guess.")}</span>}
+            {guess && <span className="muted">{t("Lock it in?")}</span>}
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => guess && onGuess(guess)}
+          disabled={!guess || frozen}
+        >
+          {t("Guess here")}
+        </button>
       </div>
     </div>
   );

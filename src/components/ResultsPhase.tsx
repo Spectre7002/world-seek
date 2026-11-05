@@ -5,6 +5,7 @@ import type { PublicState } from "@/shared/types";
 import { formatDistance } from "@/shared/scoring";
 import { emojiUrl } from "@/shared/emojis";
 import MapPicker, { type MapLine, type MapMarker } from "./MapPicker";
+import RoundHistory from "./RoundHistory";
 import { useLanguage } from "@/lib/language";
 
 const PALETTE = ["#4a5d2f", "#9a3324", "#c8843d", "#3a5a6e", "#7d5a3a", "#5e7540", "#a8553d", "#2f4858", "#b8862f", "#6b4226", "#436b56", "#8c3d2e"];
@@ -18,14 +19,23 @@ function AnimatedNumber({ value }: { value: number }) {
     if (start === value) return;
     let startTime = performance.now();
     const duration = 1500;
+    let frame = 0;
+    let cancelled = false;
     
     const tick = (now: number) => {
+      if (cancelled) return;
       const progress = Math.min((now - startTime) / duration, 1);
       const ease = 1 - Math.pow(1 - progress, 4); // easeOutQuart
       setDisplay(Math.round(start + (value - start) * ease));
-      if (progress < 1) requestAnimationFrame(tick);
+      if (progress < 1) frame = requestAnimationFrame(tick);
     };
-    requestAnimationFrame(tick);
+    frame = requestAnimationFrame(tick);
+    // Without this, StrictMode's double effect run leaves two rAF loops
+    // racing to write the same state.
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   }, [value]);
   
   return <span>{display}</span>;
@@ -52,7 +62,7 @@ export default function ResultsPhase(props: Props) {
 
   if (!result) return <div className="center-screen"><p className="muted">{t("Tallying the round…")}</p></div>;
 
-  const markers: MapMarker[] = [{ lat: result.real.lat, lng: result.real.lng, icon: state.solo ? undefined : result.targetEmoji, size: 54, title: state.solo ? t("The real spot") : result.targetName + "'s " + t("real hiding spot") }];
+  const markers: MapMarker[] = [{ lat: result.real.lat, lng: result.real.lng, icon: state.serverPickedLocation ? undefined : result.targetEmoji, size: 54, title: state.serverPickedLocation ? t("The real spot") : result.targetName + "'s " + t("real hiding spot") }];
   const lines: MapLine[] = [];
 
   for (let i = 0; i < result.guesses.length; i++) {
@@ -69,8 +79,8 @@ export default function ResultsPhase(props: Props) {
       <div className="split">
         <div style={{ position: "relative", width: "100%", height: "100%" }}>
           <div className="overlay-top">
-            {!state.solo && <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(result.targetEmoji)} alt="" /></span>}
-            <span>{state.solo ? <>{t("This was the spot 📍")}</> : <><strong>{result.targetName}</strong>{t(" was hiding here 📍")}</>}</span>
+            {!state.serverPickedLocation && <span className="roster-avatar" aria-hidden="true"><img className="emoji-img" src={emojiUrl(result.targetEmoji)} alt="" /></span>}
+            <span>{state.serverPickedLocation ? <>{t("This was the spot 📍")}</> : <><strong>{result.targetName}</strong>{t(" was hiding here 📍")}</>}</span>
           </div>
           <MapPicker markers={markers} lines={lines} fitToContent caseHint={caseHint} />
         </div>
@@ -110,9 +120,11 @@ export default function ResultsPhase(props: Props) {
             })}
           </div>
 
+          <RoundHistory state={state} limit={5} highlightKey={state.roundKey} />
+
           <div className="stack" style={{ gap: 8 }}>
             <strong className="muted">{t("Standings")} {isHpMode ? "(HP)" : ""}</strong>
-            {state.players.map(p => {
+            {state.players.filter(p => !p.spectator).map(p => {
               const hpPercent = Math.max(0, Math.min(100, (p.hp / 10000) * 100));
               return (
                 <div key={p.id} className="player-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
